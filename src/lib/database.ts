@@ -98,6 +98,27 @@ function getTrainingHeroUrl(row: DbTraining): string | undefined {
   }
 }
 
+interface DbTrainingAttachment {
+  id: string;
+  training_id: string;
+  name: string;
+  file_url?: string | null;
+  file?: string | null;
+  file_type: string;
+  created: string;
+}
+
+function getAttachmentUrl(row: DbTrainingAttachment): string {
+  if (row.file) {
+    try {
+      return pb.files.getUrl(row as any, row.file);
+    } catch {
+      return row.file;
+    }
+  }
+  return row.file_url || '';
+}
+
 function dbToTraining(row: DbTraining, attachments: TrainingAttachment[] = []): Training {
   return {
     id: row.id,
@@ -139,13 +160,14 @@ export async function fetchTrainings(): Promise<Training[]> {
 
     const attachmentsByTraining = new Map<string, TrainingAttachment[]>();
     attachmentsResult.items.forEach(att => {
+      const row = att as unknown as DbTrainingAttachment;
       const list = attachmentsByTraining.get(att.training_id) || [];
       list.push({
-        id: att.id,
-        name: att.name,
-        fileUrl: att.file_url,
-        fileType: att.file_type,
-        uploadedAt: new Date(att.created),
+        id: row.id,
+        name: row.name,
+        fileUrl: getAttachmentUrl(row),
+        fileType: row.file_type,
+        uploadedAt: new Date(row.created),
       });
       attachmentsByTraining.set(att.training_id, list);
     });
@@ -157,7 +179,7 @@ export async function fetchTrainings(): Promise<Training[]> {
   }
 }
 
-export async function createTraining(training: Omit<Training, 'id'> & { id?: string; heroImageFile?: File | null }): Promise<Training | null> {
+export async function createTraining(training: Omit<Training, 'id'> & { id?: string; heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[] }): Promise<Training | null> {
   try {
     const hasHeroFile = Boolean(training.heroImageFile);
     const payload = {
@@ -198,15 +220,15 @@ export async function createTraining(training: Omit<Training, 'id'> & { id?: str
       result = await pb.collection('trainings').create(payload);
     }
 
-    // Insert attachments if any
-    if (training.attachments && training.attachments.length > 0) {
-      for (const att of training.attachments) {
-        await pb.collection('training_attachments').create({
-          training_id: result.id,
-          name: att.name,
-          file_url: att.fileUrl,
-          file_type: att.fileType,
-        });
+    // Insert attachments if any (upload files to PocketBase)
+    if (training.attachmentFiles && training.attachmentFiles.length > 0) {
+      for (const att of training.attachmentFiles) {
+        const formData = new FormData();
+        formData.append('training_id', result.id);
+        formData.append('name', att.name);
+        formData.append('file_type', att.fileType);
+        formData.append('file', att.file);
+        await pb.collection('training_attachments').create(formData);
       }
     }
 
@@ -217,7 +239,7 @@ export async function createTraining(training: Omit<Training, 'id'> & { id?: str
   }
 }
 
-export async function updateTrainingDb(training: Training & { heroImageFile?: File | null }): Promise<boolean> {
+export async function updateTrainingDb(training: Training & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[]; removedAttachmentIds?: string[] }): Promise<boolean> {
   try {
     const hasHeroFile = Boolean(training.heroImageFile);
     const payload = {
@@ -261,28 +283,22 @@ export async function updateTrainingDb(training: Training & { heroImageFile?: Fi
       await pb.collection('trainings').update(training.id, payload);
     }
 
-    // Update attachments - delete old ones and insert new ones
-    if (training.attachments) {
-      // Get existing attachments
-      const existing = await pb.collection('training_attachments').getList(1, 50, {
-        filter: `training_id = "${training.id}"`
-      });
-      
-      // Delete existing
-      for (const att of existing.items) {
-        await pb.collection('training_attachments').delete(att.id);
+    // Remove deleted attachments
+    if (training.removedAttachmentIds && training.removedAttachmentIds.length > 0) {
+      for (const attachmentId of training.removedAttachmentIds) {
+        await pb.collection('training_attachments').delete(attachmentId);
       }
-      
-      // Insert new
-      if (training.attachments.length > 0) {
-        for (const att of training.attachments) {
-          await pb.collection('training_attachments').create({
-            training_id: training.id,
-            name: att.name,
-            file_url: att.fileUrl,
-            file_type: att.fileType,
-          });
-        }
+    }
+
+    // Add new attachments
+    if (training.attachmentFiles && training.attachmentFiles.length > 0) {
+      for (const att of training.attachmentFiles) {
+        const formData = new FormData();
+        formData.append('training_id', training.id);
+        formData.append('name', att.name);
+        formData.append('file_type', att.fileType);
+        formData.append('file', att.file);
+        await pb.collection('training_attachments').create(formData);
       }
     }
 

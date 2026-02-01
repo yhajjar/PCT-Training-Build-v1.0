@@ -32,8 +32,8 @@ interface TrainingContextType {
   addCategory: (category: Omit<Category, 'id'>) => Promise<Category | null>;
   updateCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
-  addTraining: (training: Omit<Training, 'id'> & { heroImageFile?: File | null }) => Promise<Training | null>;
-  updateTraining: (training: Training & { heroImageFile?: File | null }) => Promise<void>;
+  addTraining: (training: Omit<Training, 'id'> & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[] }) => Promise<Training | null>;
+  updateTraining: (training: Training & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[]; removedAttachmentIds?: string[] }) => Promise<void>;
   deleteTraining: (id: string) => Promise<void>;
   addRegistration: (registration: Omit<Registration, 'id'>) => Promise<Registration | null>;
   updateRegistration: (registration: Registration) => Promise<void>;
@@ -140,7 +140,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   };
 
   // Training operations
-  const addTrainingHandler = async (training: Omit<Training, 'id'> & { heroImageFile?: File | null }): Promise<Training | null> => {
+  const addTrainingHandler = async (training: Omit<Training, 'id'> & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[] }): Promise<Training | null> => {
     const created = await createTraining(training);
     if (created) {
       setTrainings(prev => [...prev, created]);
@@ -148,7 +148,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     return created;
   };
 
-  const updateTrainingHandler = async (training: Training & { heroImageFile?: File | null }) => {
+  const updateTrainingHandler = async (training: Training & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[]; removedAttachmentIds?: string[] }) => {
     const success = await updateTrainingDb(training);
     if (success) {
       setTrainings(prev => prev.map(t => t.id === training.id ? training : t));

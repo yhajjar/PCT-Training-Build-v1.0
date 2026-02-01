@@ -177,7 +177,8 @@ async function run() {
   await ensureCollection('training_attachments', [
     textField('training_id', true),
     textField('name', true),
-    textField('file_url', true),
+    textField('file_url'),
+    fileField('file'),
     textField('file_type', true),
   ]);
 

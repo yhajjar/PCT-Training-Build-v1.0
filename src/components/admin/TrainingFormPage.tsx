@@ -88,6 +88,7 @@ export function TrainingFormPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -299,8 +300,10 @@ export function TrainingFormPage() {
     // Remove from pending uploads if it was pending
     setPendingUploads(prev => prev.filter(p => p.tempId !== attachmentId));
     
-    // Note: File deletion handled by PocketBase when training is updated
-    // No explicit delete needed here
+    // Track removals for PocketBase delete
+    if (attachment && attachment.fileUrl !== 'pending-upload') {
+      setRemovedAttachmentIds(prev => [...prev, attachmentId]);
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -334,6 +337,13 @@ export function TrainingFormPage() {
       let heroImageUrl = formData.heroImage;
       let updatedAttachments = [...formData.attachments];
       const heroPending = pendingUploads.find(p => p.type === 'hero');
+      const attachmentFiles = pendingUploads
+        .filter(p => p.type === 'attachment')
+        .map(p => ({
+          file: p.file,
+          name: p.file.name,
+          fileType: 'pdf',
+        }));
 
       // Note: PocketBase handles files directly via FormData
       // Files will be uploaded when creating/updating training
@@ -363,10 +373,12 @@ export function TrainingFormPage() {
 
       if (isEditing) {
         // For editing, include the existing id
-        const trainingData: Training & { heroImageFile?: File | null } = {
+        const trainingData: Training & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[]; removedAttachmentIds?: string[] } = {
           ...trainingFormData,
           id: id!,
           heroImageFile: heroPending?.file || null,
+          attachmentFiles,
+          removedAttachmentIds,
         };
         const existingTraining = getTrainingById(id!);
         await updateTraining(trainingData);
@@ -398,6 +410,7 @@ export function TrainingFormPage() {
         const createdTraining = await addTraining({
           ...trainingFormData,
           heroImageFile: heroPending?.file || null,
+          attachmentFiles,
         });
         
         if (createdTraining) {
@@ -424,6 +437,7 @@ export function TrainingFormPage() {
 
       // Clear pending uploads
       setPendingUploads([]);
+      setRemovedAttachmentIds([]);
       navigate('/admin');
     } catch (error) {
       console.error('Submit error:', error);
