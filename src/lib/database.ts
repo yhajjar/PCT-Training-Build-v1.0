@@ -92,7 +92,7 @@ function getTrainingHeroUrl(row: DbTraining): string | undefined {
     return undefined;
   }
   try {
-    return pb.files.getUrl(row as any, row.hero_image);
+    return pb.files.getURL(row as any, row.hero_image);
   } catch {
     return row.hero_image || undefined;
   }
@@ -111,7 +111,7 @@ interface DbTrainingAttachment {
 function getAttachmentUrl(row: DbTrainingAttachment): string {
   if (row.file) {
     try {
-      return pb.files.getUrl(row as any, row.file);
+      return pb.files.getURL(row as any, row.file);
     } catch {
       return row.file;
     }
@@ -353,7 +353,7 @@ function dbToRegistration(row: DbRegistration): Registration {
 export async function fetchRegistrations(): Promise<Registration[]> {
   try {
     const result = await pb.collection('registrations').getList(1, 100, {
-      sort: '-registered_at'
+      sort: 'registered_at'
     });
     return result.items.map(row => dbToRegistration(row as DbRegistration));
   } catch (error) {
