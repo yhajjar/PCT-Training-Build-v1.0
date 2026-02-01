@@ -146,6 +146,34 @@ CREATE TABLE public.training_updates (
 -- Enable RLS on training_updates
 ALTER TABLE public.training_updates ENABLE ROW LEVEL SECURITY;
 
+-- Create page_content table (for CMS pages)
+CREATE TABLE public.page_content (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    page_slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    blocks JSON NOT NULL DEFAULT '[]',
+    is_published BOOLEAN NOT NULL DEFAULT false,
+    published_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- Enable RLS on page_content
+ALTER TABLE public.page_content ENABLE ROW LEVEL SECURITY;
+
+-- Create page_versions table (for page history)
+CREATE TABLE public.page_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    page_id UUID REFERENCES public.page_content(id) ON DELETE CASCADE NOT NULL,
+    version_number INTEGER NOT NULL,
+    blocks JSON NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- Enable RLS on page_versions
+ALTER TABLE public.page_versions ENABLE ROW LEVEL SECURITY;
+
 -- RLS Policies
 
 -- user_roles: Users can read their own roles, admins can manage all
@@ -304,7 +332,14 @@ CREATE TRIGGER update_trainings_updated_at
 CREATE TRIGGER update_resources_updated_at
     BEFORE UPDATE ON public.resources
     FOR EACH ROW
-    EXECUTE FUNCTION public.update_updated_at_column();-- Create storage bucket for training attachments
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_page_content_updated_at
+    BEFORE UPDATE ON public.page_content
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Create storage bucket for training attachments
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'training-attachments', 
