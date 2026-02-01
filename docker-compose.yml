@@ -15,7 +15,7 @@ services:
   # ---- PocketBase (self-hosted BaaS) ----
   # Avoid ports 8000, 8080, 9000 - reserved by Coolify
   pocketbase:
-    image: ghcr.io/pocketbase/pocketbase:latest
+    image: pocketbase/pocketbase:latest
     container_name: pocketbase
     ports:
       - "8090:8090"
