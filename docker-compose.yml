@@ -14,8 +14,9 @@
 services:
   # ---- PocketBase (self-hosted BaaS) ----
   # Avoid ports 8000, 8080, 9000 - reserved by Coolify
+  # Uses GitHub Container Registry (requires GitHub token in Coolify)
   pocketbase:
-    image: pocketbase/pocketbase:latest
+    image: ghcr.io/pocketbase/pocketbase:latest
     container_name: pocketbase
     ports:
       - "8090:8090"
