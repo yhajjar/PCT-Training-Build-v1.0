@@ -1,5 +1,5 @@
 import { pb } from '@/integrations/pocketbase/client';
-import { Category, Training, Registration, Resource, TrainingUpdate, TrainingAttachment } from '@/types/training';
+import { Category, Training, Registration, Resource, TrainingUpdate, TrainingAttachment, LearningPlatform } from '@/types/training';
 
 // ============= Categories =============
 
@@ -479,5 +479,31 @@ export async function createTrainingUpdate(update: Omit<TrainingUpdate, 'id' | '
   } catch (error) {
     console.error('Error creating training update:', error);
     return null;
+  }
+}
+
+// ============= Learning Platforms =============
+
+interface DbLearningPlatform {
+  id: string;
+  name: string;
+  icon: string;
+  url: string;
+}
+
+export async function fetchLearningPlatforms(): Promise<LearningPlatform[]> {
+  try {
+    const result = await pb.collection('learning_platforms').getList(1, 50, {
+      sort: '+name'
+    });
+    return result.items.map((row) => ({
+      id: row.id,
+      name: row.name,
+      icon: row.icon,
+      url: row.url,
+    } as LearningPlatform));
+  } catch (error) {
+    console.error('Error fetching learning platforms:', error);
+    return [];
   }
 }

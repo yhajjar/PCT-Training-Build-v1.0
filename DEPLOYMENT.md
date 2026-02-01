@@ -79,12 +79,36 @@ Create these collections manually following the schema:
 7. `page_content` - CMS pages
 8. `page_versions` - Page version history
 
+Optional: You can also create collections + seed mock data via script (see below).
+
 ### Step 4: Create Admin User
 
 1. Sign up via PCD app at `/signin`
 2. Access PocketBase Admin UI at `http://your-host:8090/_/`
 3. Navigate to `users` collection
 4. Find your user and set `role` to `admin`
+
+## Optional: Create Collections and Seed Mock Data via Script
+
+The repository includes a one-time setup script that:
+- Creates required collections (if missing)
+- Adds the `role` field to the `users` collection
+- Seeds data from `src/data/mockData.ts` (converted into `scripts/pocketbase/seedData.mjs`)
+
+Run locally (do not run in production without reviewing data first):
+
+```bash
+export POCKETBASE_URL="https://pocketbase.myapps.mylabs.click"
+export POCKETBASE_ADMIN_EMAIL="your-admin-email"
+export POCKETBASE_ADMIN_PASSWORD="your-admin-password"
+
+node scripts/pocketbase/setup.mjs
+```
+
+Notes:
+- This script **does not delete** existing data.
+- If collections already contain data, it will skip seeding those collections.
+- `src/data/mockData.ts` remains untouched as a backup.
 
 ## Local Development
 

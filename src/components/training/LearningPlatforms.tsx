@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { GraduationCap, Linkedin, BookOpen, ExternalLink } from 'lucide-react';
-import { learningPlatforms } from '@/data/mockData';
+import { learningPlatforms as fallbackPlatforms } from '@/data/mockData';
+import { fetchLearningPlatforms } from '@/lib/database';
+import { LearningPlatform } from '@/types/training';
 import { Card, CardContent } from '@/components/ui/card';
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -9,6 +12,26 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function LearningPlatforms() {
+  const [platforms, setPlatforms] = useState<LearningPlatform[]>(fallbackPlatforms);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchLearningPlatforms()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data.length > 0) {
+          setPlatforms(data);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load learning platforms:', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section className="py-12">
       <div className="container mx-auto px-4">
@@ -16,7 +39,7 @@ export function LearningPlatforms() {
         <p className="text-muted-foreground mb-8">Access additional learning resources from our partner platforms</p>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {learningPlatforms.map((platform) => (
+          {platforms.map((platform) => (
             <a
               key={platform.id}
               href={platform.url}
