@@ -10,9 +10,15 @@ import {
 const POCKETBASE_URL = process.env.POCKETBASE_URL;
 const ADMIN_EMAIL = process.env.POCKETBASE_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.POCKETBASE_ADMIN_PASSWORD;
+const ADMIN_TOKEN = process.env.POCKETBASE_ADMIN_TOKEN;
 
-if (!POCKETBASE_URL || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
-  console.error('Missing env vars. Required: POCKETBASE_URL, POCKETBASE_ADMIN_EMAIL, POCKETBASE_ADMIN_PASSWORD');
+if (!POCKETBASE_URL) {
+  console.error('Missing env var: POCKETBASE_URL');
+  process.exit(1);
+}
+
+if (!ADMIN_TOKEN && (!ADMIN_EMAIL || !ADMIN_PASSWORD)) {
+  console.error('Missing auth. Provide POCKETBASE_ADMIN_TOKEN or both POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD');
   process.exit(1);
 }
 
@@ -113,7 +119,11 @@ async function seedIfEmpty(collectionName, items, mapFn) {
 
 async function run() {
   console.log('Authenticating admin...');
-  await pb.admins.authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
+  if (ADMIN_TOKEN) {
+    pb.authStore.save(ADMIN_TOKEN, null);
+  } else {
+    await pb.admins.authWithPassword(ADMIN_EMAIL, ADMIN_PASSWORD);
+  }
 
   await ensureRoleField();
 

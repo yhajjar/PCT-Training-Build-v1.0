@@ -99,8 +99,13 @@ Run locally (do not run in production without reviewing data first):
 
 ```bash
 export POCKETBASE_URL="https://pocketbase.myapps.mylabs.click"
-export POCKETBASE_ADMIN_EMAIL="your-admin-email"
-export POCKETBASE_ADMIN_PASSWORD="your-admin-password"
+
+# Option A: Use admin token (recommended)
+export POCKETBASE_ADMIN_TOKEN="your-admin-token"
+
+# Option B: Use admin email/password
+# export POCKETBASE_ADMIN_EMAIL="your-admin-email"
+# export POCKETBASE_ADMIN_PASSWORD="your-admin-password"
 
 node scripts/pocketbase/setup.mjs
 ```
