@@ -12,8 +12,7 @@ RUN npm ci
 COPY . .
 
 # Build-time env vars (injected by Coolify or docker build --build-arg)
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_POCKETBASE_URL
 
 # Prevent Vite/SWC from running out of memory on constrained builders
 ENV NODE_OPTIONS=--max-old-space-size=1024
