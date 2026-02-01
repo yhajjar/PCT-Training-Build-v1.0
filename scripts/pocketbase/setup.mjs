@@ -65,31 +65,38 @@ const jsonField = (name, required = false) => ({
 });
 
 async function ensureCollection(name, schema) {
+  let existing = null;
   try {
-    const existing = await pb.collections.getOne(name);
+    const collections = await pb.collections.getFullList({ perPage: 200 });
+    existing = collections.find((c) => c.name === name) || null;
+  } catch (error) {
+    console.error('Failed to list collections:', error);
+  }
+
+  if (existing) {
     const existingFields = new Set((existing.schema || []).map((f) => f.name));
-    const mergedSchema = [...existing.schema];
+    const mergedSchema = [...(existing.schema || [])];
     schema.forEach((field) => {
       if (!existingFields.has(field.name)) {
         mergedSchema.push(field);
       }
     });
-    if (mergedSchema.length !== existing.schema.length) {
+    if (mergedSchema.length !== (existing.schema || []).length) {
       await pb.collections.update(existing.id, { schema: mergedSchema });
       console.log(`Updated collection schema: ${name}`);
     } else {
       console.log(`Collection exists: ${name}`);
     }
     return existing.id;
-  } catch (error) {
-    const created = await pb.collections.create({
-      name,
-      type: 'base',
-      schema,
-    });
-    console.log(`Created collection: ${name}`);
-    return created.id;
   }
+
+  const created = await pb.collections.create({
+    name,
+    type: 'base',
+    schema,
+  });
+  console.log(`Created collection: ${name}`);
+  return created.id;
 }
 
 async function ensureRoleField() {
