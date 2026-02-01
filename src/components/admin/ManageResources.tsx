@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { resourceSchema, validateForm } from '@/lib/validation';
-import { uploadResourceFile, deleteResourceFile } from '@/lib/resourceStorage';
+import { pb } from '@/integrations/pocketbase/client';
 
 const resourceTypes: ResourceType[] = ['Guideline', 'User Guide', 'Template', 'FAQ'];
 
@@ -112,23 +112,9 @@ export function ManageResources() {
 
       // Upload new file if pending
       if (pendingFile) {
-        const uploadResult = await uploadResourceFile(pendingFile);
-        if (!uploadResult.success) {
-          toast({ 
-            title: 'Upload Failed', 
-            description: uploadResult.error || 'Failed to upload file', 
-            variant: 'destructive' 
-          });
-          setIsUploading(false);
-          return;
-        }
-        fileUrl = uploadResult.url;
-        filePath = uploadResult.path;
-
-        // Delete old file if replacing
-        if (editingId && existingFilePath) {
-          await deleteResourceFile(existingFilePath);
-        }
+        // Note: File will be uploaded via FormData when creating/updating resource
+        fileUrl = 'pending-upload';
+        filePath = undefined;
       }
 
       if (editingId) {
@@ -167,9 +153,8 @@ export function ManageResources() {
 
   const handleDelete = async (resource: Resource) => {
     // Delete file from storage if exists
-    if (resource.filePath) {
-      await deleteResourceFile(resource.filePath);
-    }
+    // Note: File deletion handled by PocketBase when resource is deleted
+    // No explicit delete needed here
     await deleteResource(resource.id);
     toast({ title: 'Success', description: 'Resource deleted successfully' });
   };

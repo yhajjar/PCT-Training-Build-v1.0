@@ -4,7 +4,7 @@ import { Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { pb } from '@/integrations/pocketbase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SignInPage() {
@@ -22,25 +22,27 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      const authData = await pb.collection('users').authWithPassword(
+        email.trim(),
+        password
+      );
 
-      if (authError) {
-        setError(authError.message);
-        return;
-      }
-
-      if (data.user) {
+      if (authData.record) {
         toast({
           title: 'Welcome back!',
           description: 'You have successfully signed in.',
         });
         navigate('/');
       }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err: any) {
+      console.error('Auth error:', err);
+      if (err?.status === 400 && err?.data?.email) {
+        setError('Invalid email or password.');
+      } else if (err?.status === 400 && err?.data?.password) {
+        setError('Invalid email or password.');
+      } else {
+        setError(err?.message || 'An unexpected error occurred. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +91,7 @@ export default function SignInPage() {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="••••••••••"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);

@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { safeDate } from '@/lib/dateUtils';
 import { trainingSchema, validateForm, validateImageFile } from '@/lib/validation';
-import { uploadTrainingFile, deleteTrainingFile, getPathFromUrl, isStorageUrl } from '@/lib/storage';
+import { pb } from '@/integrations/pocketbase/client';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -297,10 +297,8 @@ export function TrainingFormPage() {
     // Remove from pending uploads if it was pending
     setPendingUploads(prev => prev.filter(p => p.tempId !== attachmentId));
     
-    // If it's already uploaded (has a real URL), try to delete from storage
-    if (attachment?.filePath && attachment.fileUrl !== 'pending-upload') {
-      await deleteTrainingFile(attachment.filePath);
-    }
+    // Note: File deletion handled by PocketBase when training is updated
+    // No explicit delete needed here
     
     setFormData(prev => ({
       ...prev,
@@ -334,23 +332,19 @@ export function TrainingFormPage() {
       let heroImageUrl = formData.heroImage;
       let updatedAttachments = [...formData.attachments];
 
-      // Upload pending files to cloud storage
+      // Note: PocketBase handles files directly via FormData
+      // Files will be uploaded when creating/updating the training
       if (pendingUploads.length > 0) {
-        for (const pending of pendingUploads) {
-          if (pending.type === 'hero') {
-            const result = await uploadTrainingFile(pending.file, 'hero-images', uploadId);
-            if (result.success && result.url) {
-              heroImageUrl = result.url;
-            } else {
-              toast({
-                title: 'Upload Failed',
-                description: `Failed to upload hero image: ${result.error}`,
-                variant: 'destructive',
-              });
-              setIsSubmitting(false);
-              setIsUploading(false);
-              return;
-            }
+        // Update attachment records with file references
+        updatedAttachments = formData.attachments.map(att => {
+          const pending = pendingUploads.find(p => p.tempId === att.id);
+          if (pending?.file) {
+            return { ...att, fileUrl: 'pending-upload' };
+          }
+          return att;
+        });
+        heroImageUrl = formData.heroImage || '';
+      }
           } else if (pending.type === 'attachment' && pending.tempId) {
             const result = await uploadTrainingFile(pending.file, 'attachments', uploadId);
             if (result.success && result.url) {

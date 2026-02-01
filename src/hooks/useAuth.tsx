@@ -1,10 +1,9 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { pb } from '@/integrations/pocketbase/client';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
+  user: any;
+  session: any;
   isLoading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -19,63 +18,45 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [session, setSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Check if user is admin using the has_role function
-          setTimeout(async () => {
-            const { data, error } = await supabase.rpc('has_role', {
-              _user_id: session.user.id,
-              _role: 'admin'
-            });
-            
-            if (!error) {
-              setIsAdmin(data === true);
-            }
-          }, 0);
-        } else {
-          setIsAdmin(false);
-        }
-        
-        setIsLoading(false);
+    // Check for existing auth state on mount
+    const checkAuth = async () => {
+      if (pb.authStore.isValid) {
+        const record = pb.authStore.model;
+        setUser(record);
+        setSession(pb.authStore);
+        setIsAdmin(record?.role === 'admin' || pb.authStore.record?.role === 'admin');
       }
-    );
+      setIsLoading(false);
+    };
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        supabase.rpc('has_role', {
-          _user_id: session.user.id,
-          _role: 'admin'
-        }).then(({ data, error }) => {
-          if (!error) {
-            setIsAdmin(data === true);
-          }
-          setIsLoading(false);
-        });
+    checkAuth();
+
+    // Listen to auth state changes
+    const unsubscribe = pb.authStore.subscribe(() => {
+      const record = pb.authStore.model;
+      if (record) {
+        setUser(record);
+        setSession(pb.authStore);
+        setIsAdmin(record?.role === 'admin' || pb.authStore.record?.role === 'admin');
       } else {
-        setIsLoading(false);
+        setUser(null);
+        setSession(null);
+        setIsAdmin(false);
       }
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await pb.authStore.clear();
     setUser(null);
     setSession(null);
     setIsAdmin(false);

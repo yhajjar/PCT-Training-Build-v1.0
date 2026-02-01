@@ -4,48 +4,32 @@
 # ===========================================
 #
 # This file is for LOCAL TESTING ONLY.
-# It does NOT include the full Supabase stack (use Coolify's
-# one-click Supabase template for that).
+# Now using PocketBase instead of Supabase + MinIO.
 #
 # Usage:
-#   1. Deploy Supabase via Coolify (or supabase start locally)
-#   2. Deploy MinIO via Coolify (or use this compose for MinIO)
-#   3. Build and run the PCD app pointing to those services
+#   1. Deploy PCD App via Coolify
+#   2. Deploy PocketBase via Coolify (or use this compose for local dev)
+#   3. Build and run PCD app pointing to PocketBase
 
 services:
-  # ---- MinIO (S3-compatible storage) ----
-  # Avoid ports 8000, 8080, 9000 — reserved by Coolify
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
+  # ---- PocketBase (self-hosted BaaS) ----
+  # Avoid ports 8000, 8080, 9000 - reserved by Coolify
+  pocketbase:
+    image: ghcr.io/pocketbase/pocketbase:latest
+    container_name: pocketbase
     ports:
-      - "9010:9000"   # S3 API (external: 9010, internal: 9000)
-      - "9011:9001"   # MinIO Console (external: 9011, internal: 9001)
+      - "8090:8090"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      PB_ENCRYPTION_ENV: "off"  # For local dev only
+      PB_DATA_DIR: "/pb_data"
     volumes:
-      - minio_data:/data
+      - pocketbase_data:/pb_data
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "wget", "--spider", "-q", "--tries=1", "http://localhost:8090/_/"]
+      interval: 30s
+      timeout: 10s
       retries: 3
-
-  # Create default buckets on startup (runs once and exits)
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    restart: "no"
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
-      mc mb --ignore-existing local/supabase-storage;
-      mc anonymous set download local/supabase-storage;
-      echo 'Bucket init complete.';
-      "
 
   # ---- PCD App ----
   pcd-app:
@@ -53,12 +37,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-http://localhost:8000}
-        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-your-anon-key}
+        VITE_POCKETBASE_URL: ${VITE_POCKETBASE_URL:-http://pocketbase:8090}
     ports:
       - "8022:80"
     depends_on:
-      - minio
+      - pocketbase
 
 volumes:
-  minio_data:
+  pocketbase_data:

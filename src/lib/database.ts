@@ -1,77 +1,62 @@
-import { supabase } from '@/integrations/supabase/client';
+import { pb } from '@/integrations/pocketbase/client';
 import { Category, Training, Registration, Resource, TrainingUpdate, TrainingAttachment } from '@/types/training';
 
 // ============= Categories =============
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name');
-
-  if (error) {
+  try {
+    const result = await pb.collection('categories').getList(1, 100, {
+      sort: '+name'
+    });
+    return result.items.map(row => ({
+      id: row.id,
+      name: row.name,
+      color: row.color,
+    }));
+  } catch (error) {
     console.error('Error fetching categories:', error);
     return [];
   }
-
-  return data.map(row => ({
-    id: row.id,
-    name: row.name,
-    color: row.color,
-  }));
 }
 
 export async function createCategory(category: Omit<Category, 'id'>): Promise<Category | null> {
-  const { data, error } = await supabase
-    .from('categories')
-    .insert({
+  try {
+    const result = await pb.collection('categories').create({
       name: category.name,
       color: category.color,
-    })
-    .select()
-    .single();
-
-  if (error) {
+    });
+    return {
+      id: result.id,
+      name: result.name,
+      color: result.color,
+    };
+  } catch (error) {
     console.error('Error creating category:', error);
     return null;
   }
-
-  return {
-    id: data.id,
-    name: data.name,
-    color: data.color,
-  };
 }
 
 export async function updateCategoryDb(category: Category): Promise<boolean> {
-  const { error } = await supabase
-    .from('categories')
-    .update({
+  try {
+    await pb.collection('categories').update(category.id, {
       name: category.name,
       color: category.color,
-    })
-    .eq('id', category.id);
-
-  if (error) {
+    });
+    return true;
+  } catch (error) {
     console.error('Error updating category:', error);
     return false;
   }
-
-  return true;
 }
 
 export async function deleteCategoryDb(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('categories')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
+  try {
+    await pb.collection('categories').delete(id);
+    return true;
+  } catch (error) {
     console.error('Error deleting category:', error);
     return false;
   }
-
-  return true;
 }
 
 // ============= Trainings =============
@@ -132,46 +117,38 @@ function dbToTraining(row: DbTraining, attachments: TrainingAttachment[] = []): 
 }
 
 export async function fetchTrainings(): Promise<Training[]> {
-  const { data: trainingsData, error: trainingsError } = await supabase
-    .from('trainings')
-    .select('*')
-    .order('date', { ascending: true });
+  try {
+    // Fetch trainings
+    const trainingsResult = await pb.collection('trainings').getList(1, 100, {
+      sort: '+date'
+    });
 
-  if (trainingsError) {
-    console.error('Error fetching trainings:', trainingsError);
+    // Fetch attachments
+    const attachmentsResult = await pb.collection('training_attachments').getList(1, 500);
+
+    const attachmentsByTraining = new Map<string, TrainingAttachment[]>();
+    attachmentsResult.items.forEach(att => {
+      const list = attachmentsByTraining.get(att.training_id) || [];
+      list.push({
+        id: att.id,
+        name: att.name,
+        fileUrl: att.file_url,
+        fileType: att.file_type,
+        uploadedAt: new Date(att.created),
+      });
+      attachmentsByTraining.set(att.training_id, list);
+    });
+
+    return trainingsResult.items.map(row => dbToTraining(row as DbTraining, attachmentsByTraining.get(row.id) || []));
+  } catch (error) {
+    console.error('Error fetching trainings:', error);
     return [];
   }
-
-  // Fetch attachments for all trainings
-  const { data: attachmentsData, error: attachmentsError } = await supabase
-    .from('training_attachments')
-    .select('*');
-
-  if (attachmentsError) {
-    console.error('Error fetching attachments:', attachmentsError);
-  }
-
-  const attachmentsByTraining = new Map<string, TrainingAttachment[]>();
-  (attachmentsData || []).forEach(att => {
-    const list = attachmentsByTraining.get(att.training_id) || [];
-    list.push({
-      id: att.id,
-      name: att.name,
-      fileUrl: att.file_url,
-      fileType: att.file_type,
-      uploadedAt: new Date(att.uploaded_at),
-    });
-    attachmentsByTraining.set(att.training_id, list);
-  });
-
-  return trainingsData.map(row => dbToTraining(row as DbTraining, attachmentsByTraining.get(row.id) || []));
 }
 
 export async function createTraining(training: Omit<Training, 'id'> & { id?: string }): Promise<Training | null> {
-  const { data, error } = await supabase
-    .from('trainings')
-    .insert({
-      // Let the database generate the UUID - don't pass id
+  try {
+    const result = await pb.collection('trainings').create({
       name: training.name,
       description: training.description,
       short_description: training.shortDescription || null,
@@ -194,106 +171,94 @@ export async function createTraining(training: Omit<Training, 'id'> & { id?: str
       location: training.location || null,
       speakers: training.speakers || null,
       target_audience: training.targetAudience || null,
-    })
-    .select()
-    .single();
+    });
 
-  if (error) {
-    console.error('Error creating training:', error);
-    return null;
-  }
-
-  // Insert attachments if any
-  if (training.attachments && training.attachments.length > 0) {
-    const { error: attError } = await supabase
-      .from('training_attachments')
-      .insert(training.attachments.map(att => ({
-        training_id: data.id,
-        name: att.name,
-        file_url: att.fileUrl,
-        file_type: att.fileType,
-      })));
-
-    if (attError) {
-      console.error('Error creating attachments:', attError);
-    }
-  }
-
-  return dbToTraining(data as DbTraining, training.attachments || []);
-}
-
-export async function updateTrainingDb(training: Training): Promise<boolean> {
-  const { error } = await supabase
-    .from('trainings')
-    .update({
-      name: training.name,
-      description: training.description,
-      short_description: training.shortDescription || null,
-      category_id: training.categoryId || null,
-      date: training.date instanceof Date ? training.date.toISOString() : training.date,
-      end_date: training.endDate instanceof Date ? training.endDate.toISOString() : training.endDate || null,
-      time_from: training.timeFrom || null,
-      time_to: training.timeTo || null,
-      duration: training.duration || null,
-      status: training.status,
-      available_slots: training.availableSlots,
-      max_registrations: training.maxRegistrations,
-      registration_method: training.registrationMethod,
-      external_link: training.externalLink || null,
-      hero_image: training.heroImage || null,
-      is_featured: training.isFeatured,
-      is_recommended: training.isRecommended,
-      is_registration_open: training.isRegistrationOpen,
-      display_order: training.displayOrder || null,
-      location: training.location || null,
-      speakers: training.speakers || null,
-      target_audience: training.targetAudience || null,
-    })
-    .eq('id', training.id);
-
-  if (error) {
-    console.error('Error updating training:', error);
-    return false;
-  }
-
-  // Update attachments - delete old ones and insert new ones
-  if (training.attachments) {
-    await supabase
-      .from('training_attachments')
-      .delete()
-      .eq('training_id', training.id);
-
-    if (training.attachments.length > 0) {
-      const { error: attError } = await supabase
-        .from('training_attachments')
-        .insert(training.attachments.map(att => ({
-          training_id: training.id,
+    // Insert attachments if any
+    if (training.attachments && training.attachments.length > 0) {
+      for (const att of training.attachments) {
+        await pb.collection('training_attachments').create({
+          training_id: result.id,
           name: att.name,
           file_url: att.fileUrl,
           file_type: att.fileType,
-        })));
-
-      if (attError) {
-        console.error('Error updating attachments:', attError);
+        });
       }
     }
-  }
 
-  return true;
+    return dbToTraining(result as DbTraining, training.attachments || []);
+  } catch (error) {
+    console.error('Error creating training:', error);
+    return null;
+  }
+}
+
+export async function updateTrainingDb(training: Training): Promise<boolean> {
+  try {
+    await pb.collection('trainings').update(training.id, {
+      name: training.name,
+      description: training.description,
+      short_description: training.shortDescription || null,
+      category_id: training.categoryId || null,
+      date: training.date instanceof Date ? training.date.toISOString() : training.date,
+      end_date: training.endDate instanceof Date ? training.endDate.toISOString() : training.endDate || null,
+      time_from: training.timeFrom || null,
+      time_to: training.timeTo || null,
+      duration: training.duration || null,
+      status: training.status,
+      available_slots: training.availableSlots,
+      max_registrations: training.maxRegistrations,
+      registration_method: training.registrationMethod,
+      external_link: training.externalLink || null,
+      hero_image: training.heroImage || null,
+      is_featured: training.isFeatured,
+      is_recommended: training.isRecommended,
+      is_registration_open: training.isRegistrationOpen,
+      display_order: training.displayOrder || null,
+      location: training.location || null,
+      speakers: training.speakers || null,
+      target_audience: training.targetAudience || null,
+    });
+
+    // Update attachments - delete old ones and insert new ones
+    if (training.attachments) {
+      // Get existing attachments
+      const existing = await pb.collection('training_attachments').getList(1, 50, {
+        filter: `training_id = "${training.id}"`
+      });
+      
+      // Delete existing
+      for (const att of existing.items) {
+        await pb.collection('training_attachments').delete(att.id);
+      }
+      
+      // Insert new
+      if (training.attachments.length > 0) {
+        for (const att of training.attachments) {
+          await pb.collection('training_attachments').create({
+            training_id: training.id,
+            name: att.name,
+            file_url: att.fileUrl,
+            file_type: att.fileType,
+          });
+        }
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error updating training:', error);
+    return false;
+  }
 }
 
 export async function deleteTrainingDb(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('trainings')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
+  try {
+    await pb.collection('trainings').delete(id);
+    return true;
+  } catch (error) {
     console.error('Error deleting training:', error);
     return false;
   }
-
-  return true;
 }
 
 // ============= Registrations =============
@@ -328,24 +293,20 @@ function dbToRegistration(row: DbRegistration): Registration {
 }
 
 export async function fetchRegistrations(): Promise<Registration[]> {
-  const { data, error } = await supabase
-    .from('registrations')
-    .select('*')
-    .order('registered_at', { ascending: false });
-
-  if (error) {
+  try {
+    const result = await pb.collection('registrations').getList(1, 100, {
+      sort: '-registered_at'
+    });
+    return result.items.map(row => dbToRegistration(row as DbRegistration));
+  } catch (error) {
     console.error('Error fetching registrations:', error);
     return [];
   }
-
-  return data.map(row => dbToRegistration(row as DbRegistration));
 }
 
 export async function createRegistration(registration: Omit<Registration, 'id'> & { id?: string }): Promise<Registration | null> {
-  const { data, error } = await supabase
-    .from('registrations')
-    .insert({
-      // Let the database generate the UUID - don't pass id
+  try {
+    const result = await pb.collection('registrations').create({
       training_id: registration.trainingId,
       user_id: null,
       participant_name: registration.participantName,
@@ -354,22 +315,17 @@ export async function createRegistration(registration: Omit<Registration, 'id'> 
       status: registration.status,
       attendance_status: registration.attendanceStatus,
       notes: registration.notes || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
+    });
+    return dbToRegistration(result as DbRegistration);
+  } catch (error) {
     console.error('Error creating registration:', error);
     return null;
   }
-
-  return dbToRegistration(data as DbRegistration);
 }
 
 export async function updateRegistrationDb(registration: Registration): Promise<boolean> {
-  const { error } = await supabase
-    .from('registrations')
-    .update({
+  try {
+    await pb.collection('registrations').update(registration.id, {
       participant_name: registration.participantName,
       participant_email: registration.participantEmail,
       participant_phone: registration.participantPhone || null,
@@ -377,29 +333,22 @@ export async function updateRegistrationDb(registration: Registration): Promise<
       attendance_status: registration.attendanceStatus,
       notes: registration.notes || null,
       notified_at: registration.notifiedAt ? registration.notifiedAt.toISOString() : null,
-    })
-    .eq('id', registration.id);
-
-  if (error) {
+    });
+    return true;
+  } catch (error) {
     console.error('Error updating registration:', error);
     return false;
   }
-
-  return true;
 }
 
 export async function deleteRegistrationDb(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('registrations')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
+  try {
+    await pb.collection('registrations').delete(id);
+    return true;
+  } catch (error) {
     console.error('Error deleting registration:', error);
     return false;
   }
-
-  return true;
 }
 
 // ============= Resources =============
@@ -425,73 +374,57 @@ function dbToResource(row: DbResource): Resource {
 }
 
 export async function fetchResources(): Promise<Resource[]> {
-  const { data, error } = await supabase
-    .from('resources')
-    .select('*')
-    .order('title');
-
-  if (error) {
+  try {
+    const result = await pb.collection('resources').getList(1, 100, {
+      sort: '+title'
+    });
+    return result.items.map(row => dbToResource(row as DbResource));
+  } catch (error) {
     console.error('Error fetching resources:', error);
     return [];
   }
-
-  return data.map(row => dbToResource(row as DbResource));
 }
 
 export async function createResource(resource: Omit<Resource, 'id'>): Promise<Resource | null> {
-  const { data, error } = await supabase
-    .from('resources')
-    .insert({
-      // Let the database generate the UUID - don't pass id
+  try {
+    const result = await pb.collection('resources').create({
       title: resource.title,
       type: resource.type,
       file_url: resource.fileUrl || null,
       file_path: resource.filePath || null,
       external_link: resource.externalLink || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
+    });
+    return dbToResource(result as DbResource);
+  } catch (error) {
     console.error('Error creating resource:', error);
     return null;
   }
-
-  return dbToResource(data as DbResource);
 }
 
 export async function updateResourceDb(resource: Resource): Promise<boolean> {
-  const { error } = await supabase
-    .from('resources')
-    .update({
+  try {
+    await pb.collection('resources').update(resource.id, {
       title: resource.title,
       type: resource.type,
       file_url: resource.fileUrl || null,
       file_path: resource.filePath || null,
       external_link: resource.externalLink || null,
-    })
-    .eq('id', resource.id);
-
-  if (error) {
+    });
+    return true;
+  } catch (error) {
     console.error('Error updating resource:', error);
     return false;
   }
-
-  return true;
 }
 
 export async function deleteResourceDb(id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('resources')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
+  try {
+    await pb.collection('resources').delete(id);
+    return true;
+  } catch (error) {
     console.error('Error deleting resource:', error);
     return false;
   }
-
-  return true;
 }
 
 // ============= Training Updates =============
@@ -521,38 +454,30 @@ function dbToTrainingUpdate(row: DbTrainingUpdate): TrainingUpdate {
 }
 
 export async function fetchTrainingUpdates(): Promise<TrainingUpdate[]> {
-  const { data, error } = await supabase
-    .from('training_updates')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(50);
-
-  if (error) {
+  try {
+    const result = await pb.collection('training_updates').getList(1, 50, {
+      sort: '-created'
+    });
+    return result.items.map(row => dbToTrainingUpdate(row as DbTrainingUpdate));
+  } catch (error) {
     console.error('Error fetching training updates:', error);
     return [];
   }
-
-  return data.map(row => dbToTrainingUpdate(row as DbTrainingUpdate));
 }
 
 export async function createTrainingUpdate(update: Omit<TrainingUpdate, 'id' | 'timestamp'>): Promise<TrainingUpdate | null> {
-  const { data, error } = await supabase
-    .from('training_updates')
-    .insert({
+  try {
+    const result = await pb.collection('training_updates').create({
       type: update.type,
       training_id: update.trainingId || null,
       training_name: update.trainingName,
       message: update.message,
       previous_value: update.previousValue || null,
       new_value: update.newValue || null,
-    })
-    .select()
-    .single();
-
-  if (error) {
+    });
+    return dbToTrainingUpdate(result as DbTrainingUpdate);
+  } catch (error) {
     console.error('Error creating training update:', error);
     return null;
   }
-
-  return dbToTrainingUpdate(data as DbTrainingUpdate);
 }
