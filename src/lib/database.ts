@@ -6,7 +6,7 @@ import { Category, Training, Registration, Resource, TrainingUpdate, TrainingAtt
 export async function fetchCategories(): Promise<Category[]> {
   try {
     const result = await pb.collection('categories').getList(1, 100, {
-      sort: '+name'
+      sort: 'name'
     });
     return result.items.map(row => ({
       id: row.id,
@@ -120,7 +120,7 @@ export async function fetchTrainings(): Promise<Training[]> {
   try {
     // Fetch trainings
     const trainingsResult = await pb.collection('trainings').getList(1, 100, {
-      sort: '+date'
+      sort: 'date'
     });
 
     // Fetch attachments
@@ -376,7 +376,7 @@ function dbToResource(row: DbResource): Resource {
 export async function fetchResources(): Promise<Resource[]> {
   try {
     const result = await pb.collection('resources').getList(1, 100, {
-      sort: '+title'
+      sort: 'title'
     });
     return result.items.map(row => dbToResource(row as DbResource));
   } catch (error) {
@@ -494,7 +494,7 @@ interface DbLearningPlatform {
 export async function fetchLearningPlatforms(): Promise<LearningPlatform[]> {
   try {
     const result = await pb.collection('learning_platforms').getList(1, 50, {
-      sort: '+name'
+      sort: 'name'
     });
     return result.items.map((row) => ({
       id: row.id,

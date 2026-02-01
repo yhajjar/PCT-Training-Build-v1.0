@@ -224,7 +224,7 @@ async function run() {
   });
 
   // Build category map from current data
-  const categories = await pb.collection('categories').getList(1, 200, { sort: '+name' });
+  const categories = await pb.collection('categories').getList(1, 200, { sort: 'name' });
   categories.items.forEach((item) => {
     const match = seedCategories.find((c) => c.name === item.name);
     if (match) {
@@ -258,7 +258,7 @@ async function run() {
     target_audience: t.target_audience || null,
   }));
 
-  const trainings = await pb.collection('trainings').getList(1, 500, { sort: '+created' });
+  const trainings = await pb.collection('trainings').getList(1, 500, { sort: 'created' });
   trainings.items.forEach((item, index) => {
     const seed = seedTrainings[index];
     if (seed) {
