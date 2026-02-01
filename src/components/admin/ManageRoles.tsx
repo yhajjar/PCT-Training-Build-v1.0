@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { pb } from '@/integrations/pocketbase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,26 +21,20 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
-interface UserWithRole {
+interface PocketBaseUser {
   id: string;
-  user_id: string;
-  email: string | null;
-  full_name: string | null;
+  email: string;
+  name: string;
   role: 'admin' | 'user';
-  created_at: string;
+  created: string;
 }
 
 export function ManageRoles() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [users, setUsers] = useState<PocketBaseUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'user'>('user');
-  const [isCreating, setIsCreating] = useState(false);
-
+  
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -48,33 +42,21 @@ export function ManageRoles() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      // Fetch profiles with their roles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('*');
-
-      if (rolesError) throw rolesError;
-
-      // Combine profiles with their roles
-      const usersWithRoles: UserWithRole[] = (profiles || []).map((profile) => {
-        const userRole = roles?.find((r) => r.user_id === profile.user_id);
-        return {
-          id: profile.id,
-          user_id: profile.user_id,
-          email: profile.email,
-          full_name: profile.full_name,
-          role: (userRole?.role as 'admin' | 'user') || 'user',
-          created_at: profile.created_at,
-        };
+      // Fetch all users from PocketBase users collection
+      const result = await pb.collection('users').getList(1, 100, {
+        sort: '-created'
       });
-
-      setUsers(usersWithRoles);
+      
+      // Map to PocketBaseUser format
+      const mappedUsers: PocketBaseUser[] = result.items.map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name || '',
+        role: u.role || 'user',
+        created: u.created || '',
+      }));
+      
+      setUsers(mappedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -87,88 +69,17 @@ export function ManageRoles() {
     }
   };
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newUserEmail.trim() || !newUserPassword.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Email and password are required',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (newUserPassword.length < 6) {
-      toast({
-        title: 'Validation Error',
-        description: 'Password must be at least 6 characters',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      // Create user using admin API (this requires service role, so we'll use signUp)
-      // Note: signups are disabled, but we'll handle this via edge function if needed
-      // For now, show instruction to admin
-      toast({
-        title: 'User Creation',
-        description: 'To create new users, please use the Cloud dashboard or contact your system administrator.',
-        variant: 'default',
-      });
-      
-      setNewUserEmail('');
-      setNewUserPassword('');
-      setNewUserName('');
-      setNewUserRole('user');
-    } catch (error) {
-      console.error('Error creating user:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to create user',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'user') => {
     try {
-      // Check if user already has a role entry
-      const { data: existingRole, error: fetchError } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      if (existingRole) {
-        // Update existing role
-        const { error: updateError } = await supabase
-          .from('user_roles')
-          .update({ role: newRole })
-          .eq('user_id', userId);
-
-        if (updateError) throw updateError;
-      } else {
-        // Insert new role
-        const { error: insertError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: newRole });
-
-        if (insertError) throw insertError;
-      }
-
+      // Update user's role directly
+      await pb.collection('users').update(userId, {
+        role: newRole
+      });
+      
       // Update local state
       setUsers((prev) =>
         prev.map((user) =>
-          user.user_id === userId ? { ...user, role: newRole } : user
+          user.id === userId ? { ...user, role: newRole } : user
         )
       );
 
@@ -186,25 +97,23 @@ export function ManageRoles() {
     }
   };
 
-  const handleDeleteUser = async (userId: string, userEmail: string | null) => {
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
     try {
-      // Note: Deleting users requires service role access
+      // Note: Deleting users requires admin access
       // For now, we'll just remove their role and show a message
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await pb.collection('users').update(userId, {
+        role: 'user'
+      });
 
       toast({
-        title: 'User Role Removed',
-        description: `Role removed for ${userEmail || 'user'}. Full deletion requires admin dashboard access.`,
+        title: 'Role Changed',
+        description: `User role removed for ${userEmail}. Use PocketBase admin dashboard to fully delete users.`,
+        variant: 'default',
       });
 
       fetchUsers();
     } catch (error) {
-      console.error('Error deleting user:', error);
+      console.error('Error removing user role:', error);
       toast({
         title: 'Error',
         description: 'Failed to remove user role',
@@ -217,7 +126,7 @@ export function ManageRoles() {
     const searchLower = searchQuery.toLowerCase();
     return (
       user.email?.toLowerCase().includes(searchLower) ||
-      user.full_name?.toLowerCase().includes(searchLower)
+      user.name?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -325,7 +234,7 @@ export function ManageRoles() {
                             )}
                           </div>
                           <span className="font-medium">
-                            {user.full_name || 'Unnamed User'}
+                            {user.name || 'Unnamed User'}
                           </span>
                         </div>
                       </TableCell>
@@ -336,7 +245,7 @@ export function ManageRoles() {
                         <Select
                           value={user.role}
                           onValueChange={(value: 'admin' | 'user') =>
-                            handleRoleChange(user.user_id, value)
+                            handleRoleChange(user.id, value)
                           }
                         >
                           <SelectTrigger className="w-32">
@@ -369,17 +278,17 @@ export function ManageRoles() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remove User Role?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will remove the role for {user.email || 'this user'}. 
+                                This will remove the admin role for {user.email || 'this user'}. 
                                 They will no longer have access to admin features.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
-                                onClick={() => handleDeleteUser(user.user_id, user.email)}
+                                onClick={() => handleDeleteUser(user.id, user.email)}
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
-                                Remove Role
+                                Remove Admin Role
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
