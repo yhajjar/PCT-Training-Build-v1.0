@@ -3,35 +3,17 @@
 # In production, Coolify manages each service separately.
 # ===========================================
 #
-# This file is for LOCAL TESTING ONLY.
-# Now using PocketBase instead of Supabase + MinIO.
+# NOTE: This file is now for PCD App local testing ONLY.
+# PocketBase should be deployed as a separate service on Coolify.
+# The PCD app will connect to your separate PocketBase instance via VITE_POCKETBASE_URL.
 #
 # Usage:
-#   1. Deploy PCD App via Coolify
-#   2. Deploy PocketBase via Coolify (or use this compose for local dev)
-#   3. Build and run PCD app pointing to PocketBase
+#   1. Deploy PocketBase as separate service on Coolify
+#   2. Set VITE_POCKETBASE_URL in PCD app service to point to your PocketBase
+#   3. Build and run PCD app locally (optional)
+#
 
 services:
-  # ---- PocketBase (self-hosted BaaS) ----
-  # Avoid ports 8000, 8080, 9000 - reserved by Coolify
-  # Uses GitHub Container Registry (requires GitHub token in Coolify)
-  pocketbase:
-    image: ghcr.io/pocketbase/pocketbase:latest
-    container_name: pocketbase
-    ports:
-      - "8090:8090"
-    environment:
-      PB_ENCRYPTION_ENV: "off"  # For local dev only
-      PB_DATA_DIR: "/pb_data"
-    volumes:
-      - pocketbase_data:/pb_data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "--tries=1", "http://localhost:8090/_/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # ---- PCD App ----
   pcd-app:
     build:
@@ -41,8 +23,19 @@ services:
         VITE_POCKETBASE_URL: ${VITE_POCKETBASE_URL:-http://pocketbase:8090}
     ports:
       - "8022:80"
-    depends_on:
-      - pocketbase
 
-volumes:
-  pocketbase_data:
+# ===========================================
+# Deploying on Coolify
+# ===========================================
+#
+# 1. Deploy PocketBase separately:
+#    - Service Type: Dockerfile
+#    - Image: ghcr.io/pocketbase/pocketbase:latest
+#    - Port: 8090
+#    - Env: PB_ENCRYPTION_ENV=off (dev only)
+#
+# 2. Deploy PCD App:
+#    - Build Args: VITE_POCKETBASE_URL=http://your-pocketbase-url:8090
+#    - Point to your separate PocketBase container URL
+#
+# ===========================================

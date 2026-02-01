@@ -41,7 +41,7 @@ Environment Variables (dev only):
    - Generate new token
    - Scope: `read:packages`
 
-4. Deploy the service
+4. Deploy service
 
 After deployment, PocketBase Admin UI will be available at:
 ```
@@ -54,20 +54,22 @@ In Coolify, update your existing PCD app service:
 
 **Build Args:**
 ```
-VITE_POCKETBASE_URL=http://pocketbase:8090
+VITE_POCKETBASE_URL=http://your-pocketbase-host:8090
 ```
 
 Replace `pocketbase:8090` with the actual service name or external URL from Coolify.
 
 ### Step 3: Create Collections in PocketBase
 
-Once PocketBase is running, access the Admin UI and create these collections:
+Once PocketBase is running, access the Admin UI at `http://your-host:8090/_/`:
 
 **Auth Collection:**
-- Collection: `users` (auto-created)
+- Collection: `users` (auto-created by PocketBase)
 - Fields to add: `role` (select: admin, user)
 
 **Data Collections:**
+Create these collections manually following the schema:
+
 1. `categories` - Training categories
 2. `trainings` - Training events
 3. `training_attachments` - Training file attachments
@@ -77,30 +79,27 @@ Once PocketBase is running, access the Admin UI and create these collections:
 7. `page_content` - CMS pages
 8. `page_versions` - Page version history
 
-Each collection needs appropriate fields configured. See `src/types/training.ts` and `src/lib/database.ts` for schema details.
-
 ### Step 4: Create Admin User
 
-1. Sign up via the PCD app at `/signin`
+1. Sign up via PCD app at `/signin`
 2. Access PocketBase Admin UI at `http://your-host:8090/_/`
 3. Navigate to `users` collection
 4. Find your user and set `role` to `admin`
 
 ## Local Development
 
-To run locally with docker-compose:
+To run locally without Coolify:
+
+Since PocketBase is deployed separately, you can use a simplified docker-compose:
 
 ```bash
-docker-compose up
+# 1. Start PCD app only (for local testing)
+docker-compose up pcd-app
 ```
 
-This starts:
-- PocketBase on port 8090
-- PCD App on port 8022
-- App points to http://pocketbase:8090
+The app will try to connect to PocketBase at `http://pocketbase:8090`.
 
-Access the app at: http://localhost:8022
-Access PocketBase Admin at: http://localhost:8090/_/
+**Note:** If you want to run PocketBase locally too, you can add it back to docker-compose.yml.
 
 ## Troubleshooting
 
