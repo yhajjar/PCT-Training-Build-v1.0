@@ -1,6 +1,7 @@
-# Database Setup for Self-Hosted Supabase
+# Supabase (Legacy)
 
-This directory contains all database migrations and initialization scripts for the PCD Training app.
+This directory contains legacy migrations from the previous Supabase implementation.
+The app now uses PocketBase. These files are kept for reference only.
 
 ## Files
 
@@ -10,7 +11,7 @@ This directory contains all database migrations and initialization scripts for t
 | `seed.sql` | Seed data and first admin user creation |
 | `migrations/*.sql` | Individual migration files (for reference) |
 
-## Setup Instructions
+## Setup Instructions (Legacy Only)
 
 ### Option 1: Using Supabase CLI (Recommended)
 

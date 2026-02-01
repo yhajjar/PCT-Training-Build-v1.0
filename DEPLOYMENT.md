@@ -45,7 +45,7 @@ Environment Variables (dev only):
 
 After deployment, PocketBase Admin UI will be available at:
 ```
-http://your-coolify-host:8090/_/
+https://your-pocketbase-host/_/
 ```
 
 ### Step 2: Deploy PCD App
@@ -54,14 +54,14 @@ In Coolify, update your existing PCD app service:
 
 **Build Args:**
 ```
-VITE_POCKETBASE_URL=http://your-pocketbase-host:8090
+VITE_POCKETBASE_URL=https://your-pocketbase-host
 ```
 
 Replace `pocketbase:8090` with the actual service name or external URL from Coolify.
 
 ### Step 3: Create Collections in PocketBase
 
-Once PocketBase is running, access the Admin UI at `http://your-host:8090/_/`:
+Once PocketBase is running, access the Admin UI at `https://your-pocketbase-host/_/`:
 
 **Auth Collection:**
 - Collection: `users` (auto-created by PocketBase)
@@ -84,7 +84,7 @@ Optional: You can also create collections + seed mock data via script (see below
 ### Step 4: Create Admin User
 
 1. Sign up via PCD app at `/signin`
-2. Access PocketBase Admin UI at `http://your-host:8090/_/`
+2. Access PocketBase Admin UI at `https://your-pocketbase-host/_/`
 3. Navigate to `users` collection
 4. Find your user and set `role` to `admin`
 
@@ -114,6 +114,36 @@ Notes:
 - This script **does not delete** existing data.
 - If collections already contain data, it will skip seeding those collections.
 - `src/data/mockData.ts` remains untouched as a backup.
+
+## PocketBase API Rules (Recommended)
+
+Use these rules to allow logged-in users to read data and admins to write:
+
+Read (most collections):
+
+```
+List: @request.auth.id != ""
+View: @request.auth.id != ""
+```
+
+Write (admin only):
+
+```
+Create/Update/Delete: @request.auth.role = "admin"
+```
+
+Registrations collection:
+
+```
+Create: @request.auth.id != ""
+Update/Delete: @request.auth.role = "admin"
+```
+
+Users collection (admin management):
+
+```
+List/View/Update/Delete: @request.auth.role = "admin"
+```
 
 ## Local Development
 
@@ -150,6 +180,13 @@ The app will try to connect to PocketBase at `http://pocketbase:8090`.
 2. Check the service URL in Coolify
 3. Update `VITE_POCKETBASE_URL` to the correct URL
 4. Redeploy PCD app
+
+### Hero Image Upload Fails
+
+If hero image upload fails with 400:
+
+- Ensure `trainings.hero_image` field is **File** type
+- Set Max file size in bytes (e.g. `5242880` for 5MB)
 
 ### Build Failures
 
