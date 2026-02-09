@@ -123,6 +123,21 @@ async function ensureRoleField() {
   console.log('Added role field to users collection');
 }
 
+async function updateUsersCollectionRules() {
+  console.log('Updating users collection rules for SSO provisioning...');
+  const users = await pb.collections.getOne('users');
+
+  await pb.collections.update(users.id, {
+    createRule: "", // Allow public creation for SSO auto-provisioning
+    listRule: '@request.auth.id != "" && @request.auth.role = "admin"',
+    viewRule: '@request.auth.id = id || @request.auth.role = "admin"',
+    updateRule: '@request.auth.role = "admin"',
+    deleteRule: '@request.auth.role = "admin"'
+  });
+
+  console.log('Users collection rules updated');
+}
+
 async function seedIfEmpty(collectionName, items, mapFn) {
   const list = await pb.collection(collectionName).getList(1, 1);
   if (list.totalItems > 0) {
@@ -145,6 +160,7 @@ async function run() {
   }
 
   await ensureRoleField();
+  await updateUsersCollectionRules();
 
   const adminRule = '@request.auth.role = "admin"';
   const publicRule = '';

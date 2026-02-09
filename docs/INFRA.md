@@ -10,8 +10,10 @@ Stack: React (Vite) + PocketBase + Apache + mod_auth_mellon (SAML SSO)
 User Browser
   -> Apache (HTTPS, SAML SP)
       -> React SPA (static files)
+          -> Frontend auto-provisions users in PocketBase
       -> /api proxy -> PocketBase (127.0.0.1:8090)
-      -> /whoami -> CGI script (provisions user in PB, returns JSON)
+      -> /_/ proxy -> PocketBase Admin UI (127.0.0.1:8090/_/)
+      -> /whoami -> CGI script (returns SSO identity JSON)
 ```
 
 ## 2) Hosts, Ports, URLs
@@ -20,9 +22,10 @@ User Browser
 - Apache: 80/443
 - PocketBase (local only): `127.0.0.1:8090`
 - API proxy: `https://training-hub.ku.ac.ae/api` → `http://127.0.0.1:8090/api`
+- Admin UI proxy: `https://training-hub.ku.ac.ae/_/` → `http://127.0.0.1:8090/_/`
 - SAML endpoints (Apache):
   - `/mellon` (SP endpoints)
-  - `/whoami` (returns SSO user identity and PB role)
+  - `/whoami` (returns SSO user identity JSON)
 
 ## 3) Services / Daemons
 
@@ -116,17 +119,52 @@ systemctl reload apache2
 
 ## 5) SSO → PocketBase User Provisioning
 
-Endpoint: `GET /whoami`  
-Implementation: CGI (Python)
+Endpoint: `GET /whoami`
+Implementation: CGI (Python) - returns SSO identity only
 
 File: `/usr/lib/cgi-bin/whoami.py`
 
 Behavior:
 - Reads SSO attrs from Mellon env: `MELLON_email`, `MELLON_name`, `MELLON_uid`
-- If PocketBase user not found, creates record with `role=user`
 - Returns JSON: `{ id, email, name, role, uid }`
+- **Does NOT create PocketBase users** (handled by frontend)
 
-Admin credentials for provisioning:
+### Frontend Auto-Provisioning
+
+**Implementation**: `src/lib/userProvisioning.ts` + `src/hooks/useAuth.tsx`
+
+**Flow**:
+1. User authenticates via SSO (Apache + mod_auth_mellon)
+2. Frontend fetches `/whoami` → receives SSO identity
+3. Frontend calls `provisionUserInPocketBase(ssoUser)`:
+   - Checks if user exists in PocketBase by email
+   - If not exists: Creates user with `role='user'` and random password
+   - If exists: Does NOTHING (preserves manual role assignments)
+4. User can now be managed in admin portal's Team Roles tab
+
+**Key Behavior**:
+- Email is the unique identifier
+- New users always get default `role='user'`
+- Existing users are never updated (no role sync)
+- Admins must be assigned manually via Team Roles tab
+- Race condition handling for simultaneous logins
+- Graceful degradation if PocketBase is unavailable
+
+**Collection Rules** (set by `scripts/pocketbase/setup.mjs`):
+```javascript
+createRule: ""  // Allow public creation for SSO auto-provisioning
+listRule: '@request.auth.id != "" && @request.auth.role = "admin"'
+viewRule: '@request.auth.id = id || @request.auth.role = "admin"'
+updateRule: '@request.auth.role = "admin"'
+deleteRule: '@request.auth.role = "admin"'
+```
+
+**Files**:
+- `src/lib/userProvisioning.ts` - Core provisioning logic
+- `src/hooks/useAuth.tsx` - Calls provisioning after `/whoami`
+- `scripts/pocketbase/setup.mjs` - Sets collection rules
+
+Admin credentials for `/whoami` CGI (if needed):
 `/etc/apache2/pb_admin.env`
 ```
 PB_ADMIN_EMAIL=...
@@ -230,6 +268,8 @@ Reset + reseed:
   ProxyPreserveHost On
   ProxyPass        /api/ http://127.0.0.1:8090/api/
   ProxyPassReverse /api/ http://127.0.0.1:8090/api/
+  ProxyPass        /_/ http://127.0.0.1:8090/_/
+  ProxyPassReverse /_/ http://127.0.0.1:8090/_/
 
   IncludeOptional /etc/apache2/conf-enabled/training-mellon.conf
 </VirtualHost>
@@ -237,7 +277,9 @@ Reset + reseed:
 
 ## 10) Operational Notes
 
-- PocketBase admin UI: `http://127.0.0.1:8090/_/`
+- PocketBase admin UI (production): `https://training-hub.ku.ac.ae/_/`
+- PocketBase admin UI (local): `http://127.0.0.1:8090/_/`
+- **Access Note**: Use the production URL (`https://training-hub.ku.ac.ae/_/`) to access the correct PocketBase instance. Direct access to `http://127.0.0.1:8090/_/` may connect to a different database depending on port forwarding configuration.
 - Apache logs: `/var/log/apache2/`
 - PocketBase logs: `journalctl -u pocketbase -f`
 - Backup strategy: copy `/var/lib/pocketbase` (DB + uploads)

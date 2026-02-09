@@ -6,10 +6,20 @@ This guide explains how to use the admin portal to manage trainings, enrollments
 
 - Admin access is granted via `users.role = "admin"` in PocketBase.
 - Standard users have read-only access and can register for trainings.
-- The app typically uses SSO; the `/whoami` endpoint provisions users and returns their role.
+- The app typically uses SSO; the `/whoami` endpoint returns SSO identity, and users are automatically created in PocketBase.
 - Optional local admin login is available at `/admin-login` when `VITE_ENABLE_ADMIN_LOGIN=true`.
 
 If you see an "Access denied" screen, your account does not have the `admin` role yet.
+
+### User Provisioning
+
+SSO users are automatically created in PocketBase on their first login with a default `role='user'`. This happens transparently via frontend logic:
+- Email from SSO is the unique identifier
+- New users get `role='user'` by default
+- Existing users are never updated (preserves manual role changes)
+- All users appear in the Team Roles tab after first login
+
+To grant admin access, you must manually change the user's role to `'admin'` in the Team Roles tab.
 
 ## Admin Portal Overview
 
@@ -246,6 +256,17 @@ Notes:
 - Removing admin access sets the role back to `user`.
 - For full user deletion, use the PocketBase admin dashboard.
 
+### Auto-Provisioned Users
+
+All SSO users are automatically created in PocketBase on first login. You'll see them appear in the Team Roles list after they log in for the first time.
+
+**Important Notes**:
+- Users are matched by email address
+- New users always start with `role='user'`
+- Changing a role here is permanent until you change it again
+- SSO role data is ignored; roles are managed exclusively in this interface
+- The first admin must be created manually via PocketBase admin UI at `https://training-hub.ku.ac.ae/_/`
+
 ## Troubleshooting
 
 - Access denied: ensure the user has `role = "admin"` in PocketBase.
@@ -253,3 +274,6 @@ Notes:
 - Upload failures: verify file type and size (5MB max).
 - Support page not showing: ensure content is published, not just saved as draft.
 - Registration blocked: check status, slots, and `Registration Open`.
+- User not appearing in Team Roles: user must login at least once for auto-provisioning to create their account.
+- Cannot find PocketBase admin UI: access via `https://training-hub.ku.ac.ae/_/` (not `http://127.0.0.1:8090/_/`).
+- User shows wrong role: roles are managed manually via Team Roles tab, not synced from SSO.

@@ -24,9 +24,12 @@ Internal training and event management app with SSO, a PocketBase backend, and a
 ```
 Browser
   -> Training Hub SPA (static)
+      -> /whoami (SSO identity only)
+      -> Frontend auto-provisions users in PocketBase
       -> PocketBase API (auth + data + files)
-      -> /whoami (SSO identity + role provisioning)
 ```
+
+**User Provisioning**: SSO users are automatically created in PocketBase on first login via frontend logic in `src/lib/userProvisioning.ts`. The `/whoami` endpoint provides SSO identity only; actual user creation happens in the frontend.
 
 For SSO and server-side details (Apache + mod_auth_mellon + PocketBase), see `docs/INFRA.md`.
 
@@ -63,6 +66,17 @@ Created and seeded by `scripts/pocketbase/setup.mjs`:
 - `page_content`
 - `page_versions`
 - `users` (auth collection with custom `role` field)
+
+### users Collection Auto-Provisioning
+
+SSO users are automatically created on first login with:
+- `email`: from SSO (unique identifier)
+- `name`: from SSO (defaults to email prefix)
+- `role`: Always `'user'` (admins assigned manually)
+- `password`: random (not used, SSO is primary auth)
+- `emailVisibility`: false
+
+**Important**: Existing users are never updated during auto-provisioning. Role changes must be done manually via the Team Roles tab in the admin portal.
 
 ## References
 

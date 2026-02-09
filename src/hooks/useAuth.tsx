@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { pb } from '@/integrations/pocketbase/client';
+import { provisionUserInPocketBase } from '@/lib/userProvisioning';
 
 export interface SsoUser {
   id?: string;
@@ -54,6 +55,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isActive) return;
         if (response.ok) {
           const data = (await response.json()) as SsoUser;
+
+          // Auto-provision user in PocketBase
+          try {
+            const result = await provisionUserInPocketBase(data);
+            if (!result.success) {
+              console.warn('User provisioning failed (degraded mode):', result.error);
+              // Continue anyway - user can still use app with SSO data
+            }
+          } catch (error) {
+            console.error('User provisioning error:', error);
+            // Continue anyway - degraded mode
+          }
+
           setUser(data);
           const roles = data.roles || (data.role ? [data.role] : []);
           setIsAdmin(roles.includes('admin'));
