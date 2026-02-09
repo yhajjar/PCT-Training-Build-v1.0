@@ -64,6 +64,11 @@ Created and seeded by `scripts/pocketbase/setup.mjs`:
 - `page_versions`
 - `users` (auth collection with custom `role` field)
 
+## References
+
+- [PocketBase](https://pocketbase.io/)
+- [PocketBase Docs](https://pocketbase.io/docs/)
+
 ## Environment Variables
 
 Frontend (Vite):

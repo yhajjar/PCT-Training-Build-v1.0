@@ -23,55 +23,134 @@ Open `/admin` to access the admin portal. Tabs include:
 - Support Page
 - Team Roles
 
+Mermaid diagram: portal modules and data flow.
+
+```mermaid
+flowchart LR
+  Admin[Admin Portal] --> Trainings[Trainings]
+  Admin --> Categories[Categories]
+  Admin --> Enrollment[Enrollment]
+  Admin --> Resources[Resources]
+  Admin --> Support[Support Page Builder]
+  Admin --> Roles[Team Roles]
+
+  Trainings --> PB[(PocketBase)]
+  Categories --> PB
+  Enrollment --> PB
+  Resources --> PB
+  Support --> PB
+  Roles --> PB
+```
+
 ## Trainings
 
 Use this tab to create and manage training sessions.
 
-Key actions:
+### Create a Training
 
-- Create a training with the "Add Training" button.
-- Edit or delete existing trainings.
-- Toggle featured and recommended flags to control homepage sections.
-- Control registration availability via the "Registration Open" toggle.
+1. Go to `/admin` and open the "Trainings" tab.
+2. Click "Add Training".
+3. Complete the multi-step form.
 
-Important fields and rules:
+Form steps and key fields:
 
-- Name and category are required.
+1. Basic Details
+2. Schedule
+3. Capacity
+4. Instructors
+5. Enrollment Rules
+
+### Edit or Delete a Training
+
+1. In the Trainings list, use the edit action to modify a training.
+2. Use the delete action to remove a training.
+
+Note: Deleting a training also removes it from the user-facing pages.
+
+### Validation Rules and Limits
+
+- Name: required, max 200 characters.
 - Description: max 5000 characters.
 - Short description: max 300 characters.
-- External registration link must start with `https://`.
-- Slots and max registrations must be numeric (max 10,000).
-- Hero image file types: JPEG, PNG, GIF, WebP (max 5MB).
-- Attachments: PDF/Word/Excel/PowerPoint files (max 5MB each).
+- Category: required.
+- External link: must start with `https://`.
+- Available slots: integer, min 0, max 10,000.
+- Max registrations: integer, min 1, max 10,000.
+- Hero image: JPEG, PNG, GIF, WebP, max 5MB.
+- Attachments: PDF, Word, Excel, PowerPoint, max 5MB per file.
 
-Registration behavior:
+### Training Attributes
 
-- If `registrationMethod` is `external`, users are sent to the external link.
-- If `registrationMethod` is `internal`, the built-in registration modal is used.
-- Registration is blocked when:
-  - Status is `Completed`, `Cancelled`, or `On Hold`, or
-  - Available slots are `0`, or
-  - "Registration Open" is disabled.
+- Status values: `Scheduled`, `Rescheduled`, `In Progress`, `On Hold`, `Cancelled`, `Completed`.
+- Registration methods: `internal` or `external`.
+- Target audience options:
+  - `General`
+  - `Specialist and Below`
+  - `Senior Specialist and Above`
+  - `Managers and Above`
+  - `Directors and Above`
+
+### Featured and Recommended
+
+- Mark trainings as "Featured" to show them in the homepage hero slider.
+- Mark trainings as "Recommended" to populate the recommended section.
+
+### Registration Behavior
+
+Registration is allowed only when all of the following are true:
+
+- `Registration Open` is enabled.
+- Status is not `Completed`, `Cancelled`, or `On Hold`.
+- `Available Slots` is greater than `0`.
+
+If `registrationMethod` is `external`, users are sent to the external link.
+If `registrationMethod` is `internal`, users see the built-in registration form.
+
+Mermaid diagram: registration decision flow.
+
+```mermaid
+flowchart TD
+  A[User clicks Register] --> B{registrationMethod}
+  B -->|external| C{External link present?}
+  C -->|yes| D[Open external link]
+  C -->|no| E[Show error / no action]
+  B -->|internal| F{Registration allowed?}
+  F -->|yes| G[Open registration modal]
+  F -->|no| H[Show registration closed]
+```
 
 ## Categories
 
 Create and manage training categories used for filtering and badges.
 
-- Name is required.
-- Color must be a valid hex color (for example, `#3b82f6`).
+Steps:
+
+1. Go to the "Categories" tab.
+2. Add or edit a category name and color.
+3. Save the category.
+
+Rules:
+
+- Name is required, max 100 characters.
+- Color must be a valid hex color, for example `#3b82f6`.
+
+Impact:
+
+- Categories appear as badges on cards and detail pages.
+- Category filters drive the calendar and training list filtering.
 
 ## Enrollment
 
 Manage registrations across trainings.
 
-Features:
+### Common Workflows
 
 - Search by participant name or email.
 - Filter by status, attendance, training, or category.
-- Bulk actions and status changes for multiple registrations.
-- Export to CSV or XLSX.
+- Select multiple rows and use bulk actions.
+- Export filtered results to CSV or XLSX.
 
-Enrollment statuses:
+### Enrollment Statuses
 
 - `registered`
 - `pending_approval`
@@ -81,37 +160,89 @@ Enrollment statuses:
 - `on_hold`
 - `waitlisted`
 
-Attendance statuses:
+### Attendance Statuses
 
 - `pending`
 - `attended`
 - `no_show`
 
+### Exporting
+
+- Use CSV for lightweight reporting.
+- Use XLSX for spreadsheets with better formatting.
+
 ## Resources (Tools & Guidelines)
 
-Manage documents and links shown on the Tools & Guidelines page.
+Manage documents and links shown on the Tools & Guidelines page (`/tools`).
+
+### Create or Edit a Resource
+
+1. Go to the "Resources" tab.
+2. Add a title and select a type.
+3. Provide an external link and/or upload a file.
+4. Save.
+
+Rules:
 
 - Resource types: `Guideline`, `User Guide`, `Template`, `FAQ`.
-- You can attach a file, an external link, or both.
-- File uploads: PDF/Word/Excel/PowerPoint, max 5MB.
-- External links must use `https://`.
+- External links must start with `https://`.
+- File uploads: PDF, Word, Excel, PowerPoint, max 5MB.
+
+Behavior:
+
+- If both a link and a file exist, users will see the appropriate action.
+- Replacing a file removes the old file reference in the UI.
 
 ## Support Page Builder
 
-The Support page is built from content blocks.
+The Support page (`/support`) is rendered from blocks created in the page builder.
 
-- Add blocks: Heading, Paragraph, Link/Button, Row Layout, Divider, Spacer, Icon Card.
-- Use "Save Draft" to save without publishing.
-- Use "Publish" to make the page live.
-- Use "Versions" to restore previous versions.
+### Add Content
 
-If the Support page is empty, it will show a placeholder message until content is published.
+1. Go to the "Support Page" tab.
+2. Add blocks using the available types.
+3. Save as draft or publish.
+
+Block types:
+
+- Heading
+- Paragraph
+- Link/Button
+- Row Layout
+- Divider
+- Spacer
+- Icon Card
+
+### Draft vs Publish
+
+- "Save Draft" stores changes without showing them publicly.
+- "Publish" makes the content live on the Support page.
+- "Versions" lets you restore a previous version.
+
+Mermaid diagram: support page publishing flow.
+
+```mermaid
+flowchart LR
+  A[Edit Blocks] --> B[Save Draft]
+  B --> C[Draft Stored]
+  C --> D[Publish]
+  D --> E[Live Support Page]
+  B --> F[Versions]
+  F --> B
+```
 
 ## Team Roles
 
 Manage roles for users stored in PocketBase.
 
-- Admins can assign `admin` or `user` roles.
+### Assign Roles
+
+1. Go to the "Team Roles" tab.
+2. Search for the user by name or email.
+3. Set role to `admin` or `user`.
+
+Notes:
+
 - Removing admin access sets the role back to `user`.
 - For full user deletion, use the PocketBase admin dashboard.
 
@@ -121,3 +252,4 @@ Manage roles for users stored in PocketBase.
 - External link errors: links must start with `https://`.
 - Upload failures: verify file type and size (5MB max).
 - Support page not showing: ensure content is published, not just saved as draft.
+- Registration blocked: check status, slots, and `Registration Open`.
