@@ -418,6 +418,18 @@ interface DbResource {
   file_url: string | null;
   file_path: string | null;
   external_link: string | null;
+  file?: string | null;
+}
+
+function getResourceFileUrl(row: DbResource): string | undefined {
+  if (row.file) {
+    try {
+      return pb.files.getURL(row as any, row.file);
+    } catch {
+      return row.file || undefined;
+    }
+  }
+  return row.file_url || undefined;
 }
 
 function dbToResource(row: DbResource): Resource {
@@ -425,7 +437,7 @@ function dbToResource(row: DbResource): Resource {
     id: row.id,
     title: row.title,
     type: row.type as Resource['type'],
-    fileUrl: row.file_url || undefined,
+    fileUrl: getResourceFileUrl(row),
     filePath: row.file_path || undefined,
     externalLink: row.external_link || undefined,
   };
@@ -443,15 +455,27 @@ export async function fetchResources(): Promise<Resource[]> {
   }
 }
 
-export async function createResource(resource: Omit<Resource, 'id'>): Promise<Resource | null> {
+export async function createResource(
+  resource: Omit<Resource, 'id'> & { resourceFile?: File | null }
+): Promise<Resource | null> {
   try {
-    const result = await pb.collection('resources').create({
-      title: resource.title,
-      type: resource.type,
-      file_url: resource.fileUrl || null,
-      file_path: resource.filePath || null,
-      external_link: resource.externalLink || null,
-    });
+    let result;
+    if (resource.resourceFile) {
+      const formData = new FormData();
+      formData.append('title', resource.title);
+      formData.append('type', resource.type);
+      if (resource.externalLink) formData.append('external_link', resource.externalLink);
+      formData.append('file', resource.resourceFile);
+      result = await pb.collection('resources').create(formData);
+    } else {
+      result = await pb.collection('resources').create({
+        title: resource.title,
+        type: resource.type,
+        file_url: resource.fileUrl || null,
+        file_path: resource.filePath || null,
+        external_link: resource.externalLink || null,
+      });
+    }
     return dbToResource(result as DbResource);
   } catch (error) {
     console.error('Error creating resource:', error);
@@ -459,15 +483,27 @@ export async function createResource(resource: Omit<Resource, 'id'>): Promise<Re
   }
 }
 
-export async function updateResourceDb(resource: Resource): Promise<boolean> {
+export async function updateResourceDb(
+  resource: Resource & { resourceFile?: File | null; removeFile?: boolean }
+): Promise<boolean> {
   try {
-    await pb.collection('resources').update(resource.id, {
-      title: resource.title,
-      type: resource.type,
-      file_url: resource.fileUrl || null,
-      file_path: resource.filePath || null,
-      external_link: resource.externalLink || null,
-    });
+    if (resource.resourceFile) {
+      const formData = new FormData();
+      formData.append('title', resource.title);
+      formData.append('type', resource.type);
+      if (resource.externalLink) formData.append('external_link', resource.externalLink);
+      formData.append('file', resource.resourceFile);
+      await pb.collection('resources').update(resource.id, formData);
+    } else {
+      await pb.collection('resources').update(resource.id, {
+        title: resource.title,
+        type: resource.type,
+        file_url: resource.fileUrl || null,
+        file_path: resource.filePath || null,
+        external_link: resource.externalLink || null,
+        ...(resource.removeFile ? { file: null } : {}),
+      });
+    }
     return true;
   } catch (error) {
     console.error('Error updating resource:', error);

@@ -72,7 +72,7 @@ const fileField = (name, required = false, maxSize = 5242880) => ({
   options: { maxSize, maxSelect: 1, mimeTypes: [] },
 });
 
-async function ensureCollection(name, schema) {
+async function ensureCollection(name, schema, rules = {}) {
   let existing = null;
   try {
     const collections = await pb.collections.getFullList({ perPage: 200 });
@@ -89,12 +89,13 @@ async function ensureCollection(name, schema) {
         mergedSchema.push(field);
       }
     });
-    if (mergedSchema.length !== (existing.schema || []).length) {
-      await pb.collections.update(existing.id, { schema: mergedSchema, fields: mergedSchema });
-      console.log(`Updated collection schema: ${name}`);
-    } else {
-      console.log(`Collection exists: ${name}`);
-    }
+    const updatePayload = {
+      schema: mergedSchema,
+      fields: mergedSchema,
+      ...rules,
+    };
+    await pb.collections.update(existing.id, updatePayload);
+    console.log(`Collection exists/updated: ${name}`);
     return existing.id;
   }
 
@@ -103,6 +104,7 @@ async function ensureCollection(name, schema) {
     type: 'base',
     schema,
     fields: schema,
+    ...rules,
   });
   console.log(`Created collection: ${name}`);
   return created.id;
@@ -144,10 +146,19 @@ async function run() {
 
   await ensureRoleField();
 
+  const adminRule = '@request.auth.role = "admin"';
+  const publicRule = '';
+
   await ensureCollection('categories', [
     textField('name', true),
     textField('color', true),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('trainings', [
     textField('name', true),
@@ -172,7 +183,13 @@ async function run() {
     textField('location'),
     textField('speakers'),
     textField('target_audience'),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('training_attachments', [
     textField('training_id', true),
@@ -180,7 +197,13 @@ async function run() {
     textField('file_url'),
     fileField('file'),
     textField('file_type', true),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('registrations', [
     textField('training_id', true),
@@ -193,7 +216,13 @@ async function run() {
     textField('attendance_status'),
     textField('notes'),
     dateField('notified_at'),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: publicRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('resources', [
     textField('title', true),
@@ -201,7 +230,14 @@ async function run() {
     textField('file_url'),
     textField('file_path'),
     textField('external_link'),
-  ]);
+    fileField('file'),
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('training_updates', [
     textField('type', true),
@@ -211,7 +247,13 @@ async function run() {
     dateField('timestamp'),
     textField('previous_value'),
     textField('new_value'),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('page_content', [
     textField('page_slug', true),
@@ -219,20 +261,38 @@ async function run() {
     jsonField('blocks', true),
     boolField('is_published'),
     dateField('published_at'),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('page_versions', [
     textField('page_id', true),
     numberField('version_number', true, true),
     jsonField('blocks', true),
     textField('notes'),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   await ensureCollection('learning_platforms', [
     textField('name', true),
     textField('icon', true),
     textField('url', true),
-  ]);
+  ], {
+    listRule: publicRule,
+    viewRule: publicRule,
+    createRule: adminRule,
+    updateRule: adminRule,
+    deleteRule: adminRule,
+  });
 
   // Seed data
   const categoryIdMap = new Map();

@@ -117,6 +117,7 @@ export function ManageResources() {
         filePath = undefined;
       }
 
+      const removeFile = !pendingFile && !existingFileUrl && !existingFilePath;
       if (editingId) {
         const resourceData: Resource = {
           id: editingId,
@@ -126,7 +127,11 @@ export function ManageResources() {
           filePath,
           externalLink: externalLink.trim() || undefined,
         };
-        await updateResource(resourceData);
+        await updateResource({
+          ...resourceData,
+          resourceFile: pendingFile || undefined,
+          removeFile,
+        });
         toast({ title: 'Success', description: 'Resource updated successfully' });
       } else {
         const resourceData = {
@@ -136,7 +141,10 @@ export function ManageResources() {
           filePath,
           externalLink: externalLink.trim() || undefined,
         };
-        await addResource(resourceData);
+        await addResource({
+          ...resourceData,
+          resourceFile: pendingFile || undefined,
+        });
         toast({ title: 'Success', description: 'Resource created successfully' });
       }
       resetForm();

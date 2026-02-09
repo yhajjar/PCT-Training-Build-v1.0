@@ -53,7 +53,7 @@ interface TrainingContextType {
 const TrainingContext = createContext<TrainingContextType | undefined>(undefined);
 
 export function TrainingProvider({ children }: { children: ReactNode }) {
-  const { user, isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -98,19 +98,9 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    // Only load data if user is authenticated
-    if (user) {
-      loadData();
-    } else {
-      // Clear data when user signs out
-      setCategories([]);
-      setTrainings([]);
-      setRegistrations([]);
-      setResources([]);
-      setTrainingUpdates([]);
-      setIsLoading(false);
-    }
-  }, [user, authLoading, loadData]);
+    // With SSO, reaching the app implies authentication.
+    loadData();
+  }, [authLoading, loadData]);
 
   const refreshData = useCallback(async () => {
     await loadData();
@@ -151,7 +141,7 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   const updateTrainingHandler = async (training: Training & { heroImageFile?: File | null; attachmentFiles?: { file: File; name: string; fileType: string }[]; removedAttachmentIds?: string[] }) => {
     const success = await updateTrainingDb(training);
     if (success) {
-      setTrainings(prev => prev.map(t => t.id === training.id ? training : t));
+      await refreshData();
     }
   };
 
@@ -186,7 +176,9 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
   };
 
   // Resource operations
-  const addResourceHandler = async (resource: Omit<Resource, 'id'>): Promise<Resource | null> => {
+  const addResourceHandler = async (
+    resource: Omit<Resource, 'id'> & { resourceFile?: File | null }
+  ): Promise<Resource | null> => {
     const created = await createResource(resource);
     if (created) {
       setResources(prev => [...prev, created]);
@@ -194,10 +186,12 @@ export function TrainingProvider({ children }: { children: ReactNode }) {
     return created;
   };
 
-  const updateResourceHandler = async (resource: Resource) => {
+  const updateResourceHandler = async (
+    resource: Resource & { resourceFile?: File | null; removeFile?: boolean }
+  ) => {
     const success = await updateResourceDb(resource);
     if (success) {
-      setResources(prev => prev.map(r => r.id === resource.id ? resource : r));
+      setResources(prev => prev.map(r => r.id === resource.id ? { ...r, ...resource } : r));
     }
   };
 

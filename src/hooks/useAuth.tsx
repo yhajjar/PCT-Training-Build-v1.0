@@ -1,9 +1,16 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { pb } from '@/integrations/pocketbase/client';
 
+export interface SsoUser {
+  id?: string;
+  email?: string;
+  name?: string;
+  role?: string;
+  roles?: string[];
+}
+
 interface AuthContextType {
-  user: any;
-  session: any;
+  user: SsoUser | null;
   isLoading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -11,45 +18,76 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   isLoading: true,
   isAdmin: false,
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
+  const [user, setUser] = useState<SsoUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Listen to auth state changes (fire immediately)
-    const unsubscribe = pb.authStore.onChange((token, model) => {
-      if (pb.authStore.isValid && model) {
-        setUser(model);
-        setSession(pb.authStore);
-        setIsAdmin(model?.role === 'admin');
-      } else {
-        setUser(null);
-        setSession(null);
-        setIsAdmin(false);
-      }
-      setIsLoading(false);
-    }, true);
+    let isActive = true;
+    const whoamiUrl = import.meta.env.VITE_WHOAMI_URL || '/whoami';
+    const enableAdminLogin = import.meta.env.VITE_ENABLE_ADMIN_LOGIN === 'true';
 
-    return unsubscribe;
+    const loadUser = async () => {
+      try {
+        if (enableAdminLogin && pb.authStore.isValid && pb.authStore.record) {
+          const record = pb.authStore.record as any;
+          const roles = record?.role ? [record.role] : [];
+          setUser({
+            id: record.id,
+            email: record.email,
+            name: record.name,
+            role: record.role,
+            roles,
+          });
+          setIsAdmin(roles.includes('admin'));
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await fetch(whoamiUrl, { credentials: 'include' });
+        if (!isActive) return;
+        if (response.ok) {
+          const data = (await response.json()) as SsoUser;
+          setUser(data);
+          const roles = data.roles || (data.role ? [data.role] : []);
+          setIsAdmin(roles.includes('admin'));
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      } catch {
+        if (!isActive) return;
+        setUser(null);
+        setIsAdmin(false);
+      } finally {
+        if (isActive) setIsLoading(false);
+      }
+    };
+
+    loadUser();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   const signOut = async () => {
-    pb.authStore.clear();
-    setUser(null);
-    setSession(null);
-    setIsAdmin(false);
+    const enableAdminLogin = import.meta.env.VITE_ENABLE_ADMIN_LOGIN === 'true';
+    if (enableAdminLogin && pb.authStore.isValid) {
+      pb.authStore.clear();
+    }
+    const logoutUrl = import.meta.env.VITE_SSO_LOGOUT_URL || '/mellon/logout';
+    window.location.href = logoutUrl;
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,3 @@
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
@@ -7,7 +6,7 @@ interface AdminRouteProps {
 }
 
 export function AdminRoute({ children }: AdminRouteProps) {
-  const { user, isLoading, isAdmin } = useAuth();
+  const { isLoading, isAdmin } = useAuth();
 
   if (isLoading) {
     return (
@@ -20,14 +19,17 @@ export function AdminRoute({ children }: AdminRouteProps) {
     );
   }
 
-  // If not logged in, redirect to sign in
-  if (!user) {
-    return <Navigate to="/signin" replace />;
-  }
-
-  // If logged in but not admin, redirect to home
   if (!isAdmin) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-2">
+          <p className="text-lg font-semibold">Access denied</p>
+          <p className="text-sm text-muted-foreground">
+            You do not have permission to view this page.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;

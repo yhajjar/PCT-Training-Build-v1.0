@@ -22,17 +22,29 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
+      const enableAdminLogin = import.meta.env.VITE_ENABLE_ADMIN_LOGIN === 'true';
+      if (!enableAdminLogin) {
+        setError('Local admin login is disabled.');
+        return;
+      }
+
       const authData = await pb.collection('users').authWithPassword(
         email.trim(),
         password
       );
 
       if (authData.record) {
+        const role = (authData.record as any)?.role;
+        if (role !== 'admin') {
+          pb.authStore.clear();
+          setError('Not authorized. Admin access required.');
+          return;
+        }
         toast({
           title: 'Welcome back!',
-          description: 'You have successfully signed in.',
+          description: 'Admin access granted.',
         });
-        navigate('/');
+        navigate('/admin');
       }
     } catch (err: any) {
       console.error('Auth error:', err);

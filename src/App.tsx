@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { TrainingProvider } from "@/context/TrainingContext";
 import { LoadingProvider } from "@/context/LoadingContext";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -14,8 +14,8 @@ import ToolsPage from "./pages/ToolsPage";
 import SupportPage from "./pages/SupportPage";
 import AdminPage from "./pages/AdminPage";
 import TrainingDetailPage from "./pages/TrainingDetailPage";
-import SignInPage from "./pages/SignInPage";
 import NotFound from "./pages/NotFound";
+import SignInPage from "./pages/SignInPage";
 import { TrainingFormPage } from "@/components/admin/TrainingFormPage";
 
 const queryClient = new QueryClient();
@@ -30,7 +30,8 @@ const App = () => (
             <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/signin" element={<SignInPage />} />
+              <Route path="/signin" element={<Navigate to="/" replace />} />
+              <Route path="/admin-login" element={<SignInPage />} />
               <Route
                 path="/"
                 element={
