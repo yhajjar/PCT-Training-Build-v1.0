@@ -1,20 +1,23 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { 
-  Calendar, 
-  Clock, 
-  Users, 
-  ArrowLeft, 
-  ExternalLink, 
+import {
+  Calendar,
+  Clock,
+  Users,
+  ArrowLeft,
+  ExternalLink,
   FileText,
   Download,
   MapPin,
   ImageIcon,
   Mic,
   Target,
-  Timer
+  Timer,
+  LogIn,
+  CheckCircle
 } from 'lucide-react';
 import { useTraining } from '@/context/TrainingContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,7 +33,8 @@ import { useState } from 'react';
 const TrainingDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getTrainingById } = useTraining();
+  const { getTrainingById, getRegistrationsByTrainingId } = useTraining();
+  const { user } = useAuth();
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
 
   const training = id ? getTrainingById(id) : null;
@@ -57,11 +61,17 @@ const TrainingDetailPage = () => {
   
   // Registration is allowed only if explicitly open and not blocked by status/slots
   const isRegistrationOpen = training.isRegistrationOpen ?? true;
-  const canRegister = isRegistrationOpen && 
-    training.status !== 'Completed' && 
-    training.status !== 'Cancelled' && 
-    training.status !== 'On Hold' && 
+  const canRegister = isRegistrationOpen &&
+    training.status !== 'Completed' &&
+    training.status !== 'Cancelled' &&
+    training.status !== 'On Hold' &&
     training.availableSlots > 0;
+
+  const isAlreadyRegistered = user?.email
+    ? getRegistrationsByTrainingId(training.id).some(
+        (r) => r.participantEmail.toLowerCase() === user.email!.toLowerCase()
+      )
+    : false;
 
   const handleRegister = () => {
     if (training.registrationMethod === 'external' && training.externalLink) {
@@ -299,21 +309,44 @@ const TrainingDetailPage = () => {
                     <Separator />
 
                     {/* Registration Button */}
-                    <Button 
-                      className="w-full" 
-                      size="lg"
-                      onClick={handleRegister}
-                      disabled={!canRegister}
-                    >
-                      {training.registrationMethod === 'external' ? (
-                        <>
-                          Register Now
-                          <ExternalLink className="h-4 w-4 ml-2" />
-                        </>
-                      ) : (
-                        'Register Now'
-                      )}
-                    </Button>
+                    {isAlreadyRegistered ? (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        disabled
+                        variant="secondary"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Already Registered
+                      </Button>
+                    ) : canRegister && !user ? (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={() => {
+                          window.location.href = `/mellon/login?ReturnTo=${encodeURIComponent(window.location.pathname)}`;
+                        }}
+                      >
+                        <LogIn className="h-4 w-4 mr-2" />
+                        Sign in to Register
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleRegister}
+                        disabled={!canRegister}
+                      >
+                        {training.registrationMethod === 'external' ? (
+                          <>
+                            Register Now
+                            <ExternalLink className="h-4 w-4 ml-2" />
+                          </>
+                        ) : (
+                          'Register Now'
+                        )}
+                      </Button>
+                    )}
 
                     {!isRegistrationOpen && training.status !== 'Completed' && training.status !== 'Cancelled' && (
                       <p className="text-sm text-center text-destructive">

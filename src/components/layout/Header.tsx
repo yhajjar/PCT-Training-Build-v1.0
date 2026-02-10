@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, User, Loader2 } from 'lucide-react';
+import { Menu, X, LogOut, LogIn, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -76,7 +76,7 @@ export function Header() {
           <div className="flex items-center gap-2">
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            ) : (
+            ) : user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
@@ -84,15 +84,15 @@ export function Header() {
                       <User className="h-4 w-4 text-primary" />
                     </div>
                     <span className="hidden sm:inline max-w-[150px] truncate">
-                      {user?.name || user?.email || 'SSO User'}
+                      {user.name || user.email}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5">
-                    <p className="text-sm font-medium">{user?.name || user?.email || 'SSO User'}</p>
+                    <p className="text-sm font-medium">{user.name || user.email}</p>
                     <p className="text-xs text-muted-foreground">
-                      {user?.email || 'Signed in via SSO'}
+                      {user.email}
                     </p>
                   </div>
                   <DropdownMenuSeparator />
@@ -102,6 +102,18 @@ export function Header() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  window.location.href = `/mellon/login?ReturnTo=${encodeURIComponent(window.location.pathname)}`;
+                }}
+              >
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Sign In</span>
+              </Button>
             )}
 
             {/* Mobile Menu Button */}

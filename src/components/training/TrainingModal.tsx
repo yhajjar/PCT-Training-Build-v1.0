@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { X, Calendar, Users, ExternalLink } from 'lucide-react';
+import { X, Calendar, Users, ExternalLink, User, CheckCircle } from 'lucide-react';
 import { Training } from '@/types/training';
 import { useTraining } from '@/context/TrainingContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { CategoryBadge } from './CategoryBadge';
 import { StatusBadge } from './StatusBadge';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { safeDate } from '@/lib/dateUtils';
-import { registrationSchema, validateForm } from '@/lib/validation';
 
 interface TrainingModalProps {
   training: Training;
@@ -18,29 +16,25 @@ interface TrainingModalProps {
 }
 
 export function TrainingModal({ training, onClose }: TrainingModalProps) {
-  const { addRegistration, getRegistrationsByTrainingId, refreshData } = useTraining();
+  const { addRegistration, refreshData, getRegistrationsByTrainingId } = useTraining();
   const { toast } = useToast();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const existingRegistrations = getRegistrationsByTrainingId(training.id);
   const isRegistrationOpen = training.isRegistrationOpen ?? true;
   const canRegister = isRegistrationOpen && training.status !== 'Completed' && training.availableSlots > 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate form data
-    const validation = validateForm(registrationSchema, {
-      participantName: name,
-      participantEmail: email,
-    });
+  const isAlreadyRegistered = user?.email
+    ? getRegistrationsByTrainingId(training.id).some(
+        (r) => r.participantEmail.toLowerCase() === user.email!.toLowerCase()
+      )
+    : false;
 
-    if (!validation.success) {
+  const handleRegister = async () => {
+    if (!user?.name || !user?.email) {
       toast({
-        title: 'Validation Error',
-        description: 'error' in validation ? validation.error : 'Validation failed',
+        title: 'Error',
+        description: 'Unable to retrieve your SSO identity. Please try signing in again.',
         variant: 'destructive',
       });
       return;
@@ -52,15 +46,15 @@ export function TrainingModal({ training, onClose }: TrainingModalProps) {
       const newRegistration = {
         id: Date.now().toString(),
         trainingId: training.id,
-        participantName: name.trim(),
-        participantEmail: email.trim(),
+        participantName: user.name,
+        participantEmail: user.email,
         registeredAt: new Date(),
         status: 'registered' as const,
         attendanceStatus: 'pending' as const,
       };
 
       await addRegistration(newRegistration);
-      
+
       // Refresh data to get updated available_slots from database trigger
       await refreshData();
 
@@ -114,7 +108,16 @@ export function TrainingModal({ training, onClose }: TrainingModalProps) {
             </div>
           </div>
 
-          {canRegister && (
+          {canRegister && isAlreadyRegistered && (
+            <div className="border-t-2 border-border pt-6 text-center">
+              <div className="flex items-center justify-center gap-2 text-muted-foreground mb-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="font-medium">You are already registered for this training</span>
+              </div>
+            </div>
+          )}
+
+          {canRegister && !isAlreadyRegistered && (
             <div className="border-t-2 border-border pt-6">
               <h4 className="text-lg font-bold mb-4">Register for this Training</h4>
 
@@ -130,32 +133,20 @@ export function TrainingModal({ training, onClose }: TrainingModalProps) {
                   </Button>
                 </a>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter your full name"
-                      className="mt-1"
-                    />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{user?.name}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      className="mt-1"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Registering...' : 'Register'}
+                  <Button className="w-full" onClick={handleRegister} disabled={isSubmitting}>
+                    {isSubmitting ? 'Registering...' : 'Confirm Registration'}
                   </Button>
-                </form>
+                </div>
               )}
             </div>
           )}

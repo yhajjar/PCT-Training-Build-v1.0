@@ -96,8 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (enableAdminLogin && pb.authStore.isValid) {
       pb.authStore.clear();
     }
-    const logoutUrl = import.meta.env.VITE_SSO_LOGOUT_URL || '/mellon/logout';
-    window.location.href = logoutUrl;
+    const logoutBase = import.meta.env.VITE_SSO_LOGOUT_URL || '/mellon/logout';
+    window.location.href = `${logoutBase}?ReturnTo=${encodeURIComponent(window.location.origin + '/')}`;
   };
 
   return (

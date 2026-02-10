@@ -342,7 +342,7 @@ function dbToRegistration(row: DbRegistration): Registration {
     participantName: row.participant_name,
     participantEmail: row.participant_email,
     participantPhone: row.participant_phone || undefined,
-    registeredAt: new Date(row.registered_at),
+    registeredAt: row.registered_at ? new Date(row.registered_at) : new Date(),
     status: row.status as Registration['status'],
     attendanceStatus: row.attendance_status as Registration['attendanceStatus'],
     notes: row.notes || undefined,
@@ -370,6 +370,7 @@ export async function createRegistration(registration: Omit<Registration, 'id'> 
       participant_name: registration.participantName,
       participant_email: registration.participantEmail,
       participant_phone: registration.participantPhone || null,
+      registered_at: registration.registeredAt instanceof Date ? registration.registeredAt.toISOString() : registration.registeredAt || new Date().toISOString(),
       status: registration.status,
       attendance_status: registration.attendanceStatus,
       notes: registration.notes || null,
@@ -541,7 +542,7 @@ function dbToTrainingUpdate(row: DbTrainingUpdate): TrainingUpdate {
     trainingId: row.training_id || undefined,
     trainingName: row.training_name,
     message: row.message,
-    timestamp: new Date(row.timestamp),
+    timestamp: row.timestamp ? new Date(row.timestamp) : new Date(),
     previousValue: row.previous_value || undefined,
     newValue: row.new_value || undefined,
   };
@@ -549,9 +550,7 @@ function dbToTrainingUpdate(row: DbTrainingUpdate): TrainingUpdate {
 
 export async function fetchTrainingUpdates(): Promise<TrainingUpdate[]> {
   try {
-    const result = await pb.collection('training_updates').getList(1, 50, {
-      sort: 'created'
-    });
+    const result = await pb.collection('training_updates').getList(1, 50);
     return result.items.map(row => dbToTrainingUpdate(row as DbTrainingUpdate));
   } catch (error) {
     console.error('Error fetching training updates:', error);
