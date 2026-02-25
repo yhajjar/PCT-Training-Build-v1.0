@@ -335,6 +335,8 @@ interface DbRegistration {
   notified_at: string | null;
 }
 
+const REGISTRATIONS_PAGE_SIZE = 200;
+
 function dbToRegistration(row: DbRegistration): Registration {
   return {
     id: row.id,
@@ -351,14 +353,36 @@ function dbToRegistration(row: DbRegistration): Registration {
 }
 
 export async function fetchRegistrations(): Promise<Registration[]> {
+  const registrations = pb.collection('registrations');
+
   try {
-    const result = await pb.collection('registrations').getList(1, 100, {
-      sort: 'registered_at'
+    const fullList = await registrations.getFullList<DbRegistration>({
+      sort: '-registered_at',
     });
-    return result.items.map(row => dbToRegistration(row as DbRegistration));
-  } catch (error) {
-    console.error('Error fetching registrations:', error);
-    return [];
+    return fullList.map((row) => dbToRegistration(row));
+  } catch (fullListError) {
+    console.warn('getFullList failed for registrations, falling back to paginated fetch.', fullListError);
+
+    try {
+      const allItems: DbRegistration[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      while (page <= totalPages) {
+        const result = await registrations.getList<DbRegistration>(page, REGISTRATIONS_PAGE_SIZE, {
+          sort: '-registered_at',
+        });
+
+        allItems.push(...result.items);
+        totalPages = result.totalPages;
+        page += 1;
+      }
+
+      return allItems.map((row) => dbToRegistration(row));
+    } catch (error) {
+      console.error('Error fetching registrations:', error);
+      return [];
+    }
   }
 }
 
